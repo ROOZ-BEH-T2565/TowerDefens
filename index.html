@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <title>Tower Defense 3D</title>
+    <!-- README: ES modules need a static server. In this folder run:  python3 -m http.server 8000
+     then open http://localhost:8000  (Three.js and the Vazirmatn font load from CDN). -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css"
+    />
+    <link rel="stylesheet" href="./css/themes.css" />
+    <link rel="stylesheet" href="./css/style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header id="top">
+      <div class="stat">
+        <span>❤️</span>
+        <div class="bar"><i id="hpfill"></i></div>
+        <b id="hptxt"></b>
+      </div>
+      <div class="stat">💰 <b id="gold"></b></div>
+      <div class="stat">
+        <span id="wavetxt"></span>
+        <div class="bar small"><i id="wavefill"></i></div>
+      </div>
+      <div class="grow"></div>
+      <button id="next"></button>
+      <button id="pause" title="Pause">⏸</button>
+      <button id="lang">FA</button>
+      <button id="theme">🌙</button>
+      <button id="sound">🔊</button>
+      <input
+        id="vol"
+        type="range"
+        min="0"
+        max="1"
+        step="0.1"
+        aria-label="Volume"
+      />
+    </header>
+    <div id="status"></div>
+    <main id="view">
+      <div id="panel"></div>
+      <div id="vig"></div>
+    </main>
+    <div class="overlay" id="howto">
+      <div class="card">
+        <h2 data-i18n="how"></h2>
+        <ul>
+          <li data-i18n="h1"></li>
+          <li data-i18n="h2"></li>
+          <li data-i18n="h3"></li>
+          <li data-i18n="h4"></li>
+        </ul>
+        <button id="startbtn" data-i18n="start"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="over">
+      <div class="card">
+        <h2 id="overtitle"></h2>
+        <p id="overtxt"></p>
+        <button id="restart" data-i18n="restart"></button>
+      </div>
+    </div>
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
