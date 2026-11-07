@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="fa" dir="rtl" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta
@@ -13,8 +13,8 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css"
     />
-    <link rel="stylesheet" href="./css/themes.css" />
-    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="css/themes.css" />
+    <link rel="stylesheet" href="css/style.css" />
     <script type="importmap">
       {
         "imports": {
@@ -31,30 +31,76 @@
         <b id="hptxt"></b>
       </div>
       <div class="stat">💰 <b id="gold"></b></div>
+      <div class="stat">🗼 <b id="towers"></b></div>
       <div class="stat">
         <span id="wavetxt"></span>
         <div class="bar small"><i id="wavefill"></i></div>
       </div>
       <div class="grow"></div>
       <button id="next"></button>
-      <button id="pause" title="Pause">⏸</button>
-      <button id="lang">FA</button>
-      <button id="theme">🌙</button>
-      <button id="sound">🔊</button>
-      <input
-        id="vol"
-        type="range"
-        min="0"
-        max="1"
-        step="0.1"
-        aria-label="Volume"
-      />
+      <button id="speed">⏩ 1×</button>
+      <button id="gear" title="Settings">⚙️</button>
     </header>
     <div id="status"></div>
     <main id="view">
+      <div id="toast"></div>
       <div id="panel"></div>
       <div id="vig"></div>
     </main>
+    <div class="overlay hidden" id="settings">
+      <div class="card menu">
+        <h2 data-i18n="settings"></h2>
+        <div class="opt">
+          <span data-i18n="language"></span>
+          <div class="seg" id="seg-lang">
+            <button data-v="fa">فارسی</button
+            ><button data-v="en">English</button>
+          </div>
+        </div>
+        <div class="opt">
+          <span data-i18n="theme"></span>
+          <div class="seg" id="seg-theme">
+            <button data-v="dark">🌙 <span data-i18n="dark"></span></button
+            ><button data-v="light">☀️ <span data-i18n="light"></span></button>
+          </div>
+        </div>
+        <div class="opt">
+          <span data-i18n="sound"></span>
+          <div class="seg" id="seg-sound">
+            <button data-v="on">🔊 <span data-i18n="on"></span></button
+            ><button data-v="off">🔇 <span data-i18n="off"></span></button>
+          </div>
+        </div>
+        <div class="opt">
+          <span data-i18n="volume"></span
+          ><input
+            id="vol"
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            aria-label="Volume"
+          />
+        </div>
+        <div class="opt">
+          <span data-i18n="quality"></span>
+          <div class="seg" id="seg-q">
+            <button data-v="low" data-i18n="low"></button
+            ><button data-v="high" data-i18n="high"></button>
+          </div>
+        </div>
+        <div class="opt">
+          <span data-i18n="speed"></span>
+          <div class="seg" id="seg-speed">
+            <button data-v="1">1×</button><button data-v="2">2×</button
+            ><button data-v="3">3×</button>
+          </div>
+        </div>
+        <button class="big" id="resume" data-i18n="resume"></button>
+        <button class="big alt" id="restart2" data-i18n="restart2"></button>
+        <button class="big alt" id="howbtn" data-i18n="how"></button>
+      </div>
+    </div>
     <div class="overlay" id="howto">
       <div class="card">
         <h2 data-i18n="how"></h2>
@@ -63,6 +109,7 @@
           <li data-i18n="h2"></li>
           <li data-i18n="h3"></li>
           <li data-i18n="h4"></li>
+          <li data-i18n="h5"></li>
         </ul>
         <button id="startbtn" data-i18n="start"></button>
       </div>

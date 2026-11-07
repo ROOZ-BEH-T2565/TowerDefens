@@ -1,3 +1,4 @@
+// Bootstrap and game loop.
 import * as THREE from "three";
 import { Scene3D } from "./scene3d.js";
 import { Grid } from "./grid.js";
@@ -36,7 +37,7 @@ cv.addEventListener("pointerup", (e) => {
 });
 // Auto-pause when the tab is hidden
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden && !game.paused) document.getElementById("pause").click();
+  if (document.hidden) ui.openSettings();
 });
 
 let last = performance.now();
@@ -45,7 +46,7 @@ let last = performance.now();
   last = now;
   requestAnimationFrame(frame); // schedule first so one error can't kill the loop
   try {
-    game.update(dt);
+    for (let i = 0; i < ui.speed; i++) game.update(dt);
     ui.tick(dt);
     sc.update(dt);
   } catch (err) {

@@ -15,6 +15,7 @@ export class Scene3D {
     const sun = new THREE.DirectionalLight(0xffffff, 1.7);
     sun.position.set(6, 12, 5);
     sun.castShadow = true;
+    this.sun = sun;
     sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, {
       left: -9,
@@ -36,6 +37,11 @@ export class Scene3D {
     this.setTheme(true);
     this.resize();
     addEventListener("resize", () => this.resize());
+  }
+  setQuality(hi) {
+    this.sun.castShadow = hi;
+    this.r.setPixelRatio(hi ? Math.min(window.devicePixelRatio || 1, 2) : 1);
+    this.resize();
   }
   setTheme(dark) {
     const c = dark ? 0x0b1020 : 0xdfe9ff;
