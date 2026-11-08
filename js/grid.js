@@ -1,6 +1,6 @@
 // Tile grid, path, build-tile logic.
 import * as THREE from 'three';
-import { GRID, PATH } from './config.js';
+import { GRID, PATH, DECOR_TILES } from './config.js';
 export const wp = (x, y) => new THREE.Vector3(x - (GRID - 1) / 2, 0, y - (GRID - 1) / 2);
 export class Grid {
   constructor(scene) {
@@ -16,7 +16,7 @@ export class Grid {
       const p = this.pathSet.has(x + ',' + y);
       const mat = new THREE.MeshStandardMaterial(p
         ? { color: 0xd4a24c, roughness: .7, emissive: 0x553300, emissiveIntensity: .5 }
-        : { color: (x + y) % 2 ? 0x2c3e5a : 0x32476a, roughness: .8, emissive: 0x000000 });
+        : { color: (x + y) % 2 ? 0x3f6b46 : 0x477550, roughness: .8, emissive: 0x000000 });
       const m = new THREE.Mesh(geo, mat); m.position.copy(wp(x, y)); m.position.y = -.1;
       m.receiveShadow = true; m.userData = { x, y, path: p }; scene.add(m); this.meshes.push(m);
     }
@@ -25,6 +25,7 @@ export class Grid {
     const spawn = new THREE.Mesh(new THREE.CylinderGeometry(.3, .3, .5, 16), new THREE.MeshStandardMaterial({ color: 0x22d3ee, emissive: 0x22d3ee, emissiveIntensity: .6 }));
     spawn.position.copy(this.waypoints[0]).y = .25; scene.add(spawn);
   }
+  reserve() { for (const [x, y] of DECOR_TILES) this.occ.set(x + ',' + y, { blocked: true }); } // scenery tiles can't be built on
   isBuildable(x, y) { return !this.pathSet.has(x + ',' + y) && !this.occ.has(x + ',' + y); }
   highlight(x, y) { // glow on the selected tile
     if (this.hl) this.hl.material.emissive.setHex(0);
