@@ -5,6 +5,7 @@ export class Projectile {
   constructor(from, target, tower, scene) {
     this.target = target;
     this.dmg = tower.dmg;
+    this.scale = tower.dmg / tower.def.dmg;
     this.def = tower.def;
     this.scene = scene;
     this.done = false;
@@ -26,6 +27,12 @@ export class Projectile {
     game.fx.burst(this.mesh.position, this.def.proj, 1, 0.3, 0.04); // trail
     if (dist <= step + 0.1) {
       t.hit(this.dmg * elemMult(this.def.elem, t.c.elem)); // elemental multiplier if (this.def.slow) t.applySlow(this.def.slow, this.def.slowT);
+      if (this.def.dot)
+        t.addDot(
+          "poison",
+          this.def.dot * this.scale * elemMult(this.def.elem, t.c.elem),
+          this.def.dotT,
+        );
       game.fx.burst(this.mesh.position, this.def.proj, 5, 2, 0.06);
       game.audio.play("hit");
       this.kill();
@@ -64,7 +71,51 @@ export class Effects {
       });
     }
   }
+  ring(pos, color, radius) {
+    // expanding shockwave ring
+    const m = new THREE.Mesh(
+      new THREE.RingGeometry(0.85, 1, 40).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    );
+    m.position.copy(pos).y = 0.08;
+    this.scene.add(m);
+    (this.misc ??= []).push({ m, life: 0.45, max: 0.45, r: radius, k: "ring" });
+  }
+  bolt(pos) {
+    // lightning strike column
+    const m = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.07, 9, 6),
+      new THREE.MeshBasicMaterial({ color: 0xfff3a0, transparent: true }),
+    );
+    m.position.set(pos.x, 4.5, pos.z);
+    this.scene.add(m);
+    (this.misc ??= []).push({ m, life: 0.35, max: 0.35, k: "bolt" });
+  }
+  updMisc(dt) {
+    const a = this.misc || [];
+    for (let i = a.length - 1; i >= 0; i--) {
+      const o = a[i];
+      o.life -= dt;
+      const f = Math.max(o.life / o.max, 0);
+      o.m.material.opacity = f;
+      if (o.k === "ring")
+        o.m.scale.setScalar(Math.max(0.1, o.r * (1 - f) + 0.2));
+      if (o.life <= 0) {
+        this.scene.remove(o.m);
+        o.m.geometry.dispose();
+        o.m.material.dispose();
+        a.splice(i, 1);
+      }
+    }
+  }
   update(dt) {
+    this.updMisc(dt);
     for (let i = this.list.length - 1; i >= 0; i--) {
       const p = this.list[i];
       p.life -= dt;
@@ -79,6 +130,11 @@ export class Effects {
     }
   }
   clear() {
+    (this.misc || []).forEach((o) => {
+      this.scene.remove(o.m);
+      o.m.material.dispose();
+    });
+    this.misc = [];
     this.list.forEach((p) => {
       this.scene.remove(p.m);
       p.m.material.dispose();

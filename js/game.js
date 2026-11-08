@@ -13,7 +13,9 @@ import {
   STEP,
   elemMult,
   ELEM_COLOR,
+  SPELLS,
 } from "./config.js";
+import { Sweeper } from "./special.js";
 import { t } from "./i18n.js";
 import { Enemy } from "./enemy.js";
 import { Tower } from "./tower.js";
@@ -39,6 +41,9 @@ export class Game {
     this.towers = [];
     this.projectiles = [];
     this.grid.occ.clear();
+    this.sweeper?.dispose();
+    this.sweeper = new Sweeper(this.sc.scene);
+    this.grid.occ.set(this.sweeper.x + "," + this.sweeper.y, this.sweeper); // ruined Air Sweeper
     Object.assign(this, {
       gold: START_GOLD,
       hp: START_HP,
@@ -50,12 +55,14 @@ export class Game {
       waveTotal: 1,
       over: false,
       hpMul: 1,
+      charge: 0,
+      spells: { freeze: 0, meteor: 0, repair: 0 },
     });
     this.ui?.refresh();
   }
   pickables() {
-    return this.grid.meshes.concat(...this.towers.map((t) => t.meshes));
-  }
+    return this.grid.meshes;
+  } // only tiles are touchable; towers are visual only
   get cap() {
     return TOWER_CAP_BASE + Math.floor(this.wave / STEP);
   } // tower limit grows slowly
@@ -116,6 +123,98 @@ export class Game {
       if (ENEMIES[k].from === this.wave && this.wave > 1)
         this.ui.toast(`⚠️ ${t("newEnemy")}: ${t(k)} — ${t("ab_" + k)}`);
   }
+  nova(tw) {
+    // every 10 shots: cannon = fire nova (burn), freezer = ice nova (slow)
+    const p = tw.g.position,
+      r = tw.range,
+      L = tw.level,
+      kind = tw.def.nova;
+    this.fx.ring(p, kind === "burn" ? 0xff6a1a : 0x8be9ff, r);
+    this.audio.play("nova");
+    for (const e of this.enemies) {
+      if (e.dead || e.g.position.distanceTo(p) > r) continue;
+      if (kind === "burn") {
+        e.addDot(
+          "burn",
+          tw.dmg * 0.35 * elemMult("fire", e.c.elem),
+          3 + 0.5 * (L - 1),
+        );
+        this.fx.burst(e.g.position.clone().setY(0.4), 0xff7722, 6, 2, 0.07);
+      } else {
+        e.applySlow(0.2, 1 + 0.25 * (L - 1));
+        this.fx.burst(e.g.position.clone().setY(0.4), 0x8be9ff, 6, 2, 0.07);
+      }
+    }
+  }
+  buySpell(k) {
+    // shop: spend surplus gold on spells
+    const c = SPELLS[k].cost;
+    if (this.gold < c) return;
+    this.gold -= c;
+    if (k === "charge") this.charge = Math.min(100, this.charge + 50);
+    else this.spells[k]++;
+    this.audio.play("sell");
+    this.ui.refresh();
+  }
+  repairSweeper() {
+    if (this.sweeper.repaired || this.gold < this.sweeper.cost) return;
+    this.gold -= this.sweeper.cost;
+    this.sweeper.repair();
+    this.audio.play("upgrade");
+    this.ui.refresh();
+  }
+  cast(kind, x, y) {
+    // bolt (reservoir) + meteor hit a path tile; freeze / repair are instant
+    const pos = wp(x ?? 0, y ?? 0),
+      mul = Math.max(this.hpMul, 1);
+    if (kind === "bolt") {
+      if (this.charge < 100) return false;
+      this.charge = 0;
+      this.fx.bolt(pos);
+      this.fx.ring(pos, 0xfff3a0, 1);
+      this.audio.play("bolt");
+      this.sc.shake = 0.25;
+      this.areaDmg(pos, 1.0, 70 * mul, "bolt");
+    } else if (kind === "meteor") {
+      if (this.spells.meteor < 1) return false;
+      this.spells.meteor--;
+      this.fx.ring(pos, 0xff6a1a, 1.5);
+      this.fx.burst(pos.clone().setY(0.4), 0xff6a1a, 30, 5, 0.15);
+      this.audio.play("bolt");
+      this.sc.shake = 0.4;
+      this.areaDmg(pos, 1.5, 110 * mul, "fire", true);
+    } else if (kind === "freeze") {
+      if (this.spells.freeze < 1) return false;
+      this.spells.freeze--;
+      this.audio.play("nova");
+      for (const e of this.enemies) {
+        e.applySlow(0.25, 4);
+        this.fx.burst(e.g.position.clone().setY(0.4), 0x8be9ff, 6, 2, 0.07);
+      }
+    } else if (kind === "repair") {
+      if (this.spells.repair < 1) return false;
+      this.spells.repair--;
+      this.audio.play("upgrade");
+      this.towers.forEach((w) => {
+        w.hp = w.maxHp;
+        w.stun = 0;
+        this.fx.burst(w.g.position.clone().setY(0.6), 0x66ff99, 8, 2, 0.07);
+      });
+    }
+    this.ui.refresh();
+    return true;
+  }
+  areaDmg(pos, r, dmg, elem, burn) {
+    for (const e of this.enemies) {
+      if (
+        e.dead ||
+        Math.hypot(e.g.position.x - pos.x, e.g.position.z - pos.z) > r
+      )
+        continue;
+      e.hit(dmg * elemMult(elem, e.c.elem));
+      if (burn) e.addDot("burn", dmg * 0.08, 4);
+    }
+  }
   enemyAttack(e, tower) {
     // enemy shoots a tower with its element
     const a = e.c.atk,
@@ -173,6 +272,7 @@ export class Game {
       if (e.dead) {
         // reward + death burst
         this.gold += Math.round(e.c.reward * (1 + this.wave * 0.03));
+        this.charge = Math.min(100, this.charge + e.c.reward * 0.6); // fills the lightning reservoir
         this.fx.burst(e.g.position.clone().setY(0.4), e.c.color, 16, 3.5, 0.1);
         this.audio.play("death");
         this.drop(i);
@@ -199,6 +299,7 @@ export class Game {
     this.projectiles.forEach((p) => p.update(dt, this));
     this.projectiles = this.projectiles.filter((p) => !p.done);
     this.fx.update(dt);
+    this.sweeper.update(dt, this);
     if (this.hp <= 0) {
       this.hp = 0;
       return this.finish(false);

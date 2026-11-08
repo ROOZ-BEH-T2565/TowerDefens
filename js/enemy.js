@@ -96,6 +96,20 @@ function model(type, c, mats) {
       eye(k * s * 0.28, s * 3.5, s * 0.6, 0xff2222);
     });
     P(Cy(s * 0.25, s * 0.45, s * 2.4), 0x4a3220, s * 1.5, s * 1.9, s * 0.7);
+  } else if (type === "guardian") {
+    // armored goblin knight with a big round shield
+    P(Cp(s * 0.8, s), K, 0, s * 1.5, 0);
+    P(Sp(s * 0.8), 0x9aa7b8, 0, s * 3.2, 0);
+    P(Cn(s * 0.3, s * 0.9), 0x9aa7b8, 0, s * 4, 0);
+    both((k) => eye(k * s * 0.3, s * 3.3, s * 0.65, 0xffffff));
+    P(
+      Cy(s * 1.2, s * 1.2, s * 0.18, 14).rotateX(Math.PI / 2),
+      0x6b7a90,
+      s * 1.3,
+      s * 2,
+      s * 0.5,
+    );
+    P(Sp(s * 0.3), 0xffd166, s * 1.3, s * 2, s * 0.65, glow(0xaa7700));
   } else if (type === "warlock") {
     // robed horned mage with fire orb
     P(Cn(s * 1.1, s * 3, 7), K, 0, s * 1.5, 0);
@@ -165,6 +179,11 @@ export class Enemy {
       t: Math.random() * 6,
       hc: c.heal ? c.heal.every : 0,
       ac: c.atk ? c.atk.every : 0,
+      shield: 0,
+      dots: {},
+      fxT: 0,
+      auraC: c.aura ? c.aura.every : 0,
+      auraT: 0,
     });
     this.max = this.hp = c.hp * hpMul;
     this.mats = [];
@@ -173,6 +192,21 @@ export class Enemy {
     this.g.add(this.m);
     this.g.position.copy(wps[0]);
     scene.add(this.g);
+    if (c.aura) {
+      // protective bubble (visible while active)
+      this.bubble = new T.Mesh(
+        new T.SphereGeometry(c.aura.r, 16, 12),
+        new T.MeshBasicMaterial({
+          color: 0x66aaff,
+          transparent: true,
+          opacity: 0.22,
+          depthWrite: false,
+        }),
+      );
+      this.bubble.position.y = 0.5;
+      this.bubble.visible = false;
+      this.g.add(this.bubble);
+    }
     this.bar = new T.Group();
     this.barY = s * 5 + 0.25; // billboarded HP bar
     const bg = new T.Mesh(
@@ -192,6 +226,7 @@ export class Enemy {
   update(dt, cam, game) {
     this.t += dt;
     this.slow -= dt;
+    this.shield -= dt;
     let move = this.c.speed * (this.slow > 0 ? this.slowMul : 1) * dt;
     const pos = this.g.position;
     while (move > 0) {
@@ -222,6 +257,36 @@ export class Enemy {
       );
     this.bar.position.copy(pos).y += this.barY;
     this.bar.quaternion.copy(cam.quaternion);
+    for (const k in this.dots) {
+      // burn / poison damage over time
+      const d = this.dots[k];
+      d.t -= dt;
+      this.takeDot(d.dps * dt * (this.shield > 0 ? 0.5 : 1));
+      if (d.t <= 0) delete this.dots[k];
+    }
+    if (Object.keys(this.dots).length && (this.fxT -= dt) <= 0) {
+      this.fxT = 0.3;
+      game.fx.burst(
+        pos.clone().setY(this.c.size * 3),
+        this.dots.burn ? 0xff7722 : 0x77ff44,
+        2,
+        0.8,
+        0.05,
+      );
+    }
+    const au = this.c.aura; // ability: bubble, allies inside take 50% less damage
+    if (au) {
+      if ((this.auraC -= dt) <= 0) {
+        this.auraC = au.every;
+        this.auraT = au.dur;
+      }
+      if (this.auraT > 0) {
+        this.auraT -= dt;
+        for (const e of game.enemies)
+          if (!e.dead && e.g.position.distanceTo(pos) <= au.r) e.shield = 0.3;
+      }
+      this.bubble.visible = this.auraT > 0;
+    }
     const h = this.c.heal; // ability: heal nearby allies
     if (h && (this.hc -= dt) <= 0) {
       this.hc = h.every;
@@ -256,7 +321,35 @@ export class Enemy {
     this.hp = Math.min(this.max, this.hp + v);
     this.setBar();
   }
+  takeDot(v) {
+    this.hp -= v;
+    this.setBar();
+    if (this.hp <= 0) this.dead = true;
+  }
+  addDot(kind, dps, t) {
+    const d = this.dots[kind];
+    if (!d || dps >= d.dps) this.dots[kind] = { dps, t };
+    else d.t = Math.max(d.t, t);
+  }
+  pushBack(dist) {
+    // wind push: move backwards along the path
+    const pos = this.g.position;
+    while (dist > 0) {
+      const prev = this.wps[this.i - 1],
+        d = pos.distanceTo(prev);
+      if (d <= dist) {
+        pos.copy(prev);
+        dist -= d;
+        if (this.i <= 1) break;
+        this.i--;
+      } else {
+        pos.addScaledVector(prev.clone().sub(pos).normalize(), dist);
+        dist = 0;
+      }
+    }
+  }
   hit(d) {
+    if (this.shield > 0) d *= 0.5;
     this.hp -= d;
     this.flash = 0.08;
     this.setBar();

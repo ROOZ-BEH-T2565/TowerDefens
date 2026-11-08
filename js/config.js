@@ -31,12 +31,22 @@ export const ELEM = {
   bolt: "⚡",
   nature: "🌿",
   stone: "🪨",
+  poison: "🧪",
+};
+export const MAX_LEVEL = 6,
+  UP_MULT = [0.8, 1.2, 1.6, 2.1, 2.7]; // upgrade price multipliers per level
+export const SPELLS = {
+  charge: { cost: 80, icon: "🔋" },
+  freeze: { cost: 100, icon: "🌨️" },
+  meteor: { cost: 150, icon: "☄️" },
+  repair: { cost: 60, icon: "🔧" },
 };
 export const ELEM_COLOR = { fire: 0xff6a1a, ice: 0x8be9ff, bolt: 0xffe14d };
 const ELEM_TABLE = {
   fire: { nature: 1.5, ice: 1.5, stone: 0.8, fire: 0.4, bolt: 1 },
   ice: { fire: 1.6, nature: 0.9, stone: 1, ice: 0.4, bolt: 1 },
   bolt: { stone: 1.5, ice: 1.25, fire: 1, nature: 0.8, bolt: 0.5 },
+  poison: { nature: 0.6, fire: 1.2, ice: 1.3, stone: 1, bolt: 1, poison: 0.4 },
 };
 export const elemMult = (a, d) => ELEM_TABLE[a]?.[d] ?? 1;
 
@@ -71,6 +81,7 @@ export const ENEMIES = {
     dmg: 3,
     elem: "stone",
     from: 1,
+    resist: 0.4,
   },
   shaman: {
     hp: 70,
@@ -81,7 +92,7 @@ export const ENEMIES = {
     dmg: 2,
     elem: "nature",
     from: 5,
-    heal: { r: 1.8, pct: 0.12, every: 2 },
+    heal: { r: 2, pct: 0.2, every: 2 },
   },
   warlock: {
     hp: 110,
@@ -114,16 +125,30 @@ export const ENEMIES = {
     dmg: 8,
     elem: "fire",
     from: 20,
+    resist: 0.25,
     atk: { r: 3.2, dmg: 40, every: 2.5, elem: "fire" },
+  },
+  guardian: {
+    hp: 160,
+    speed: 0.8,
+    reward: 14,
+    color: 0x7d8aa0,
+    size: 0.22,
+    dmg: 2,
+    elem: "stone",
+    from: 8,
+    resist: 0.7,
+    aura: { r: 1.6, every: 6, dur: 3 },
   },
 };
 export const TOWERS = {
   cannon: {
+    nova: "burn",
     cost: 50,
     range: 2.6,
     dmg: 14,
-    rate: 1.2,
-    hp: 120,
+    rate: 1.5,
+    hp: 170,
     elem: "fire",
     color: 0x3b82f6,
     proj: 0xffd166,
@@ -141,6 +166,7 @@ export const TOWERS = {
     speed: 28,
   },
   freezer: {
+    nova: "freeze",
     cost: 35,
     range: 2.0,
     dmg: 3,
@@ -152,6 +178,19 @@ export const TOWERS = {
     speed: 10,
     slow: 0.4,
     slowT: 1.6,
+  },
+  poison: {
+    cost: 70,
+    range: 2.4,
+    dmg: 4,
+    rate: 1.1,
+    hp: 120,
+    elem: "poison",
+    color: 0x66dd33,
+    proj: 0x88ff44,
+    speed: 11,
+    dot: 6,
+    dotT: 4,
   },
 };
 // Wave generator: groups {t:type, c:count, i:spawn interval, d:delay} + HP multiplier.
@@ -170,6 +209,8 @@ export function waveDef(n) {
     g.push({ t: "tank", c: Math.floor(n / 3), i: 1.6, d: 5 });
   if (n >= 5)
     g.push({ t: "shaman", c: 1 + Math.floor((n - 5) / 3), i: 2, d: 4 });
+  if (n >= 8)
+    g.push({ t: "guardian", c: 1 + Math.floor((n - 8) / 4), i: 3, d: 5 });
   if (n >= 10)
     g.push({ t: "warlock", c: 1 + Math.floor((n - 10) / 3), i: 2.5, d: 6 });
   if (n >= 15)
@@ -221,4 +262,16 @@ export const SOUNDS = {
   ],
   over: [[400, 100, 1.2, "sawtooth", 0.3]],
   click: [[600, 500, 0.04, "sine", 0.15]],
+  bolt: [
+    ["n", 0.35, 0.5, 6000],
+    [120, 30, 0.4, "sawtooth", 0.4],
+  ],
+  nova: [
+    [300, 900, 0.3, "sine", 0.25],
+    ["n", 0.2, 0.2, 2000],
+  ],
+  wind: [
+    ["n", 0.5, 0.25, 1500],
+    [200, 500, 0.4, "sine", 0.1],
+  ],
 };

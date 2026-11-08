@@ -302,3 +302,39 @@ button:disabled {
   border: 0;
   font-weight: 700;
 }
+
+/* Spell bar (lightning reservoir + owned spells) */
+#spells {
+  position: absolute;
+  z-index: 3;
+  top: 10px;
+  inset-inline-start: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#spells button {
+  width: 52px;
+  height: 52px;
+  padding: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  line-height: 1;
+}
+#spells small {
+  font-size: 10px;
+  color: var(--muted);
+}
+#spells button.ready {
+  box-shadow: 0 0 14px #ffe14d;
+  border-color: #ffe14d;
+}
+#spells button.sel {
+  outline: 2px solid var(--accent);
+}
+.opt small {
+  color: var(--muted);
+}
