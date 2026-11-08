@@ -4,8 +4,8 @@ import * as THREE from 'three';
 import { wp } from './grid.js';
 const T = THREE;
 export class Sweeper {
-  constructor(scene) {
-    Object.assign(this, { scene, x: 6, y: 6, cost: 60, costF: 60, range: 4.2, tan: 1, push: 1.5, every: 3.5, repaired: false, cd: 1, blast: 0, isSweeper: true, angle: Math.PI, hp: 220, maxHp: 220, def: { elem: 'stone' } });
+  constructor(scene, x = 6, y = 6, enabled = true) {
+    Object.assign(this, { scene, x, y, enabled, cost: 60, costF: 60, range: 4.2, tan: 1, push: 1.5, every: 3.5, repaired: false, cd: 1, blast: 0, isSweeper: true, angle: Math.PI, hp: 220, maxHp: 220, def: { elem: 'stone' } });
     this.g = new T.Group(); this.g.position.copy(wp(this.x, this.y)); scene.add(this.g); this.build();
     // invisible click target so the visible ruin/tower itself selects this tile
     this.hit = new T.Mesh(new T.BoxGeometry(.95, 1.3, .95), new T.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
@@ -17,6 +17,7 @@ export class Sweeper {
     this.tri.position.y = .07; this.tri.rotation.y = this.angle; this.tri.visible = false; this.g.add(this.tri);
     const bg = new T.Mesh(new T.PlaneGeometry(.7, .08), new T.MeshBasicMaterial({ color: 0x111111, depthTest: false }));
     this.fg = new T.Mesh(new T.PlaneGeometry(.7, .08), new T.MeshBasicMaterial({ color: 0x44ff66, depthTest: false }));
+    if (!enabled) this.g.visible = false; // this level has no Air Sweeper
     bg.renderOrder = 10; this.fg.renderOrder = 11; this.fg.position.z = .001;
     this.bar = new T.Group(); this.bar.add(bg, this.fg); this.bar.position.copy(this.g.position).y += 1.5; this.bar.visible = false; scene.add(this.bar);
   }
@@ -44,6 +45,7 @@ export class Sweeper {
     this.body = b; this.g.add(b);
   }
   update(dt, game) {
+    if (!this.enabled) return;
     const r = Math.max(this.hp / this.maxHp, .001);
     this.bar.visible = this.repaired && this.hp < this.maxHp; this.fg.scale.x = r; this.fg.position.x = -(1 - r) * .35; this.bar.quaternion.copy(game.sc.cam.quaternion);
     if (!this.repaired) return;

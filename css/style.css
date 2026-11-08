@@ -98,3 +98,41 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .card .dk .th{width:56px;height:56px;align-self:center}
 .gi{display:flex;gap:10px;align-items:center}
 .gi .imgs{display:flex;gap:2px;flex:none}
+
+/* Bottom info window: absolute, never moves the map */
+#panel{position:absolute;left:50%;right:auto;top:auto;bottom:8px;transform:translateX(-50%);width:min(94%,440px);max-height:46%;overflow:auto;border-radius:14px;border:1px solid var(--border);padding:10px 12px;z-index:4}
+@media(min-width:900px){#panel{position:absolute;left:50%;right:auto;top:auto;bottom:10px;width:min(94%,440px);max-height:46%}}
+.ph{display:flex;align-items:center;gap:8px;padding-inline-end:34px}
+.ph .th{width:48px;height:48px}
+.pst{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;margin:6px 0}
+.sr{display:flex;align-items:baseline;gap:6px;font-size:13px}
+.sr span{color:var(--muted);flex:1}
+.up{color:#34d399;font-style:normal;font-weight:700}
+.ab{font-size:12px;margin:2px 0}
+#panel .row button.ok:disabled{opacity:.4}
+/* Radial menu: icons on a circle around the tapped tile */
+#radial{position:absolute;left:0;top:0;width:0;height:0;z-index:5;display:none;pointer-events:none}
+.rring{position:absolute;left:-58px;top:-58px;width:116px;height:116px;border:2px dashed var(--accent);border-radius:50%;opacity:.85;box-shadow:0 0 14px rgba(34,211,238,.35),inset 0 0 14px rgba(34,211,238,.2);animation:spin 16s linear infinite;pointer-events:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.rb{position:absolute;transform:translate(-50%,-50%);width:50px;height:50px;min-height:50px;border-radius:50%;padding:0;pointer-events:auto;background:var(--panel);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;overflow:visible}
+.rb img{width:40px;height:40px;object-fit:contain;pointer-events:none}
+.rb .ic{font-size:22px;pointer-events:none}
+.rb small{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:1px;font-size:11px;white-space:nowrap;background:rgba(0,0,0,.7);color:#fff;border-radius:6px;padding:0 5px;pointer-events:none}
+.rb.sel{outline:3px solid #34d399}
+.rb.poor small{color:#ff9a9a}
+.rb:disabled{opacity:.45}
+/* Main menu, level select, records */
+.logo{font-size:56px;text-align:center}
+.card h1{margin:4px 0;text-align:center;font-size:26px}
+.card .sub{text-align:center;color:var(--muted);margin-top:0}
+.card .big.danger{color:var(--danger);border-color:var(--danger)}
+#levelgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:10px 0}
+.card .lv{display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:start;background:var(--panel);color:var(--text);border:1px solid var(--border);padding:8px;font-weight:400;min-height:96px}
+.card .lv.lock{opacity:.5}
+.card .lv small{color:var(--muted);font-size:11px}
+.card .lv .rw{display:flex;align-items:center;gap:4px}
+.th.s{width:28px;height:28px}
+.stars{color:#ffd24a;letter-spacing:2px}
+.stars.big{font-size:34px;text-align:center}
+#recbody{max-height:55dvh;overflow:auto;text-align:start}
+.card .dk.lock{opacity:.5}

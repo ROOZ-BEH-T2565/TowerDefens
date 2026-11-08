@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 export class Scene3D {
   constructor(el) {
-    this.el = el; this.shake = 0; this.k = 1.5;
+    this.el = el; this.shake = 0; this.k = 1.5; this.gcol = [0x15301f, 0x9fd08a]; this.dark = true;
     this.r = new THREE.WebGLRenderer({ antialias: true });
     this.r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.r.shadowMap.enabled = true; this.r.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -22,10 +22,12 @@ export class Scene3D {
     new ResizeObserver(() => this.resize()).observe(el); // follows the container (phone rotation, bottom panel...)
   }
   setQuality(hi) { this.sun.castShadow = hi; this.r.setPixelRatio(hi ? Math.min(window.devicePixelRatio || 1, 2) : 1); this.resize(); }
+  setGround(cols) { this.gcol = cols; this.setTheme(this.dark); } // per-level ground colours
   setTheme(dark) {
+    this.dark = dark;
     const c = dark ? 0x0b1020 : 0xdfe9ff;
     this.scene.background = new THREE.Color(c); this.scene.fog.color.set(c);
-    this.ground.material.color.set(dark ? 0x15301f : 0x9fd08a);
+    this.ground.material.color.set(dark ? this.gcol[0] : this.gcol[1]);
   }
   resize() {
     const w = this.el.clientWidth || 1, h = this.el.clientHeight || 1;

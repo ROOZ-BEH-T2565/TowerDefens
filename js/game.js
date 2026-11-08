@@ -1,28 +1,36 @@
 // Game state, economy, waves, spells and tower destruction.
-import { ENEMIES, TOWERS, START_GOLD, START_HP, MAX_WAVE, FIRST_COUNTDOWN, WAVE_GAP, waveDef, TOWER_CAP_BASE, STEP, WAVE_REPAIR, elemMult, ELEM_COLOR, SPELLS } from './config.js';
+import { LEVELS, ENEMIES, TOWERS, START_HP, FIRST_COUNTDOWN, WAVE_GAP, waveDef, TOWER_CAP_BASE, STEP, WAVE_REPAIR, elemMult, ELEM_COLOR, SPELLS } from './config.js';
 import { t } from './i18n.js';
 import { Enemy } from './enemy.js';
 import { Tower } from './tower.js';
 import { Effects, Shot } from './projectile.js';
 import { Sweeper } from './special.js';
+import { buildDecor } from './decor.js';
 import { wp } from './grid.js';
 const DEFAULT_DECK = ['cannon', 'sniper', 'freezer', 'fire'];
 export class Game {
   constructor(sc, grid, audio) {
     this.sc = sc; this.grid = grid; this.audio = audio; this.fx = new Effects(sc.scene);
     this.enemies = []; this.towers = []; this.projectiles = []; this.wrecks = []; this.paused = false;
+    this.levelIdx = 0; this.level = LEVELS[0]; this.decor = null;
+  }
+  start(idx, deck) { // load a level: map, theme, scenery, then reset the run
+    this.levelIdx = idx; this.level = LEVELS[idx]; this.grid.load(this.level); this.sc.setGround(this.level.theme.ground);
+    if (this.decor) { this.sc.scene.remove(this.decor); this.decor.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); }); }
+    this.decor = buildDecor(this.sc.scene, this.grid, this.level, idx); this.reset(deck);
   }
   reset(deck) {
     this.enemies.forEach(e => e.dispose(this.sc.scene)); this.towers.forEach(w => w.dispose()); this.wrecks.forEach(w => { w.tw.dispose(); if (w.ruin) this.dropRuin(w.ruin); });
     this.projectiles.forEach(p => !p.done && p.kill()); this.fx.clear();
-    this.enemies = []; this.towers = []; this.projectiles = []; this.wrecks = []; this.grid.occ.clear(); this.grid.reserve();
-    this.sweeper?.dispose(); this.sweeper = new Sweeper(this.sc.scene); this.grid.occ.set(this.sweeper.x + ',' + this.sweeper.y, this.sweeper); // ruined Air Sweeper
+    this.enemies = []; this.towers = []; this.projectiles = []; this.wrecks = []; this.grid.occ.clear();
+    this.sweeper?.dispose(); const sw = this.level.sweeper; this.sweeper = new Sweeper(this.sc.scene, sw ? sw[0] : 0, sw ? sw[1] : 0, !!sw); // ruined Air Sweeper (from level 5)
+    if (sw) this.grid.occ.set(sw[0] + ',' + sw[1], this.sweeper);
     this.deck = deck || this.deck || DEFAULT_DECK;
-    Object.assign(this, { gold: START_GOLD, hp: START_HP, wave: 0, state: 'countdown', timer: FIRST_COUNTDOWN, queue: [], spawnT: 0, waveTotal: 1, over: false, hpMul: 1, charge: 0, spells: { freeze: 0, meteor: 0, repair: 0 } });
+    Object.assign(this, { gold: this.level.gold, kills: 0, hp: START_HP, wave: 0, state: 'countdown', timer: FIRST_COUNTDOWN, queue: [], spawnT: 0, waveTotal: 1, over: false, hpMul: 1, charge: 0, spells: { freeze: 0, meteor: 0, repair: 0 } });
     this.ui?.refresh();
   }
   get cap() { return TOWER_CAP_BASE + Math.floor(this.wave / STEP); } // tower limit grows slowly
-  pickables() { return this.ui.armed ? this.grid.meshes : this.grid.meshes.concat(this.sweeper.hit); } // tiles only (+ sweeper click target)
+  pickables() { return this.ui.armed || !this.sweeper.enabled ? this.grid.meshes : this.grid.meshes.concat(this.sweeper.hit); } // tiles only (+ sweeper click target)
   build(type, x, y) {
     const d = TOWERS[type]; if (this.gold < d.cost || this.towers.length >= this.cap || !this.grid.isBuildable(x, y)) return null;
     this.gold -= d.cost;
@@ -42,11 +50,11 @@ export class Game {
   startWave(early) {
     if (this.state !== 'countdown' || this.over) return;
     if (early) this.gold += Math.ceil(this.timer) * 2; // bonus for calling the wave early
-    this.wave++; const def = waveDef(this.wave); this.hpMul = def.hp; this.queue = [];
+    this.wave++; const def = waveDef(this.level, this.wave); this.hpMul = def.hp; this.queue = [];
     for (const g of def.g) for (let k = 0; k < g.c; k++) this.queue.push({ t: g.d + k * g.i, type: g.t });
     this.queue.sort((a, b) => a.t - b.t); this.waveTotal = this.queue.length; this.spawnT = 0; this.state = 'wave';
     this.audio.play('wave'); this.ui.refresh();
-    for (const k in ENEMIES) if (ENEMIES[k].from === this.wave && this.wave > 1) this.ui.toast(`⚠️ ${t('newEnemy')}: ${ENEMIES[k].icon} ${t(k)} — ${t('ab_' + k)}`);
+    for (const k in this.level.enemies) if (this.level.enemies[k] === this.wave && this.wave > 1) this.ui.toast(`⚠️ ${t('newEnemy')}: ${ENEMIES[k].icon} ${t(k)} — ${t('ab_' + k)}`);
   }
   waveProgress() { return this.state === 'wave' ? Math.max(0, Math.min(1, (this.waveTotal - this.queue.length - this.enemies.length) / this.waveTotal)) : 1; }
   spawnEnemy(type, from) { // minions (summons, golem splits) appear at the parent's spot on the path
@@ -65,7 +73,7 @@ export class Game {
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       if (e.dead) { // reward, lightning charge, death burst, golem split
-        this.gold += Math.round(e.c.reward * (1 + this.wave * .03)); this.charge = Math.min(100, this.charge + e.c.reward * .6);
+        this.gold += Math.round(e.c.reward * (1 + this.wave * .03) * Math.sqrt(this.level.hpMul)); this.kills++; this.charge = Math.min(100, this.charge + e.c.reward * .6);
         this.fx.burst(e.g.position.clone().setY(.4), e.c.color, 16, 3.5, .1); this.audio.play('death');
         if (e.c.split) for (let k = 0; k < e.c.split.n; k++) this.spawnEnemy(e.c.split.type, e);
         this.drop(i); this.ui.refresh(); continue;
@@ -84,7 +92,7 @@ export class Game {
     if (this.state === 'wave' && !this.queue.length && !this.enemies.length) { // wave cleared
       this.gold += 20 + this.wave * 5; this.audio.play('clear');
       this.towers.forEach(w => { w.hp = Math.min(w.maxHp, w.hp + w.maxHp * WAVE_REPAIR); this.fx.burst(w.g.position.clone().setY(.6), 0x66ff99, 5, 1.5, .06); }); if (this.sweeper.repaired) this.sweeper.hp = Math.min(this.sweeper.maxHp, this.sweeper.hp + this.sweeper.maxHp * WAVE_REPAIR); // +30% HP
-      if (this.wave >= MAX_WAVE) return this.finish(true);
+      if (this.wave >= this.level.waves) return this.finish(true);
       this.state = 'countdown'; this.timer = WAVE_GAP; this.ui.refresh();
     }
   }

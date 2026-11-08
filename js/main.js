@@ -5,11 +5,9 @@ import { Grid } from './grid.js';
 import { AudioManager } from './audio.js';
 import { Game } from './game.js';
 import { UIManager } from './ui.js';
-import { buildDecor } from './decor.js';
 const sc = new Scene3D(document.getElementById('view'));
 const grid = new Grid(sc.scene), audio = new AudioManager(), game = new Game(sc, grid, audio), ui = new UIManager(game, audio, sc);
-buildDecor(sc.scene, grid);
-game.ui = ui; game.reset(); ui.init(); // reset first so HUD has state to display
+game.ui = ui; game.start(0, ['cannon', 'sniper', 'freezer']); ui.init(); // level 1 renders behind the main menu
 addEventListener('pointerdown', () => audio.unlock()); // unlock audio on first interaction
 
 // Click/tap picking (ignores drags)
@@ -24,7 +22,7 @@ cv.addEventListener('pointerup', e => {
   ui.pickTile(hit ? hit.object.userData : null);
 });
 // Auto-pause when the tab is hidden
-document.addEventListener('visibilitychange', () => { if (document.hidden) ui.openSettings(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) ui.show('settings'); });
 
 let last = performance.now();
 (function frame(now) {
