@@ -1,81 +1,192 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fa" dir="rtl" data-theme="dark">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Tower Defense 3D</title>
-<!-- README: ES modules need a static server. In this folder run:  python3 -m http.server 8000
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <title>Tower Defense 3D</title>
+    <!-- README: ES modules need a static server. In this folder run:  python3 -m http.server 8000
      then open http://localhost:8000  (Three.js and the Vazirmatn font load from CDN). -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
-<link rel="stylesheet" href="css/themes.css">
-<link rel="stylesheet" href="css/style.css">
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
-</head>
-<body>
-<header id="top">
-  <div class="chip"><span class="ic">❤️</span><div class="bar"><i id="hpfill"></i></div><b class="val" id="hptxt"></b></div>
-  <div class="chip gold" id="goldchip"><span class="coin">🪙</span><b class="val" id="gold"></b></div>
-  <div class="chip"><span class="ic">🗼</span><b class="val" id="towers"></b></div>
-  <div class="chip"><span class="ic">🌊</span><span id="wavetxt"></span><div class="bar small"><i id="wavefill"></i></div></div>
-  <div class="grow"></div>
-  <button id="next"></button>
-  <button id="speed">⏩ 1×</button>
-  <button id="shopbtn" title="Shop">🛒</button>
-  <button id="gear" title="Settings">⚙️</button>
-</header>
-<div id="status"><span id="st1"></span><span id="st2" class="pill"></span></div>
-<div id="stage">
-  <main id="view"><div id="toast"></div><div id="spells"></div><div id="radial"></div><div id="panel"></div><div id="vig"></div></main>
-</div>
-<div class="overlay" id="menu"><div class="card menu">
-  <div class="logo">🏰</div><h1 data-i18n="title"></h1><p class="sub" data-i18n="subtitle"></p>
-  <button class="big" id="m-start" data-i18n="mStart"></button>
-  <button class="big alt" id="m-records" data-i18n="mRecords"></button>
-  <button class="big alt" id="m-settings" data-i18n="settings"></button>
-  <button class="big alt" id="m-guide" data-i18n="how"></button>
-  <button class="big alt danger" id="m-reset" data-i18n="mReset"></button>
-</div></div>
-<div class="overlay hidden" id="levels"><div class="card menu wide">
-  <h2 data-i18n="mStart"></h2><div id="levelgrid"></div><button class="big alt" id="lv-back" data-i18n="back"></button>
-</div></div>
-<div class="overlay hidden" id="records"><div class="card menu wide">
-  <h2 data-i18n="mRecords"></h2><div id="recbody"></div><button class="big alt" id="rec-back" data-i18n="back"></button>
-</div></div>
-<div class="overlay hidden" id="settings"><div class="card menu">
-  <h2 data-i18n="settings"></h2>
-  <div class="opt"><span data-i18n="language"></span><div class="seg" id="seg-lang"><button data-v="fa">فارسی</button><button data-v="en">English</button></div></div>
-  <div class="opt"><span data-i18n="theme"></span><div class="seg" id="seg-theme"><button data-v="dark">🌙 <span data-i18n="dark"></span></button><button data-v="light">☀️ <span data-i18n="light"></span></button></div></div>
-  <div class="opt"><span data-i18n="sound"></span><div class="seg" id="seg-sound"><button data-v="on">🔊 <span data-i18n="on"></span></button><button data-v="off">🔇 <span data-i18n="off"></span></button></div></div>
-  <div class="opt"><span data-i18n="volume"></span><input id="vol" type="range" min="0" max="1" step="0.1" aria-label="Volume"></div>
-  <div class="opt"><span data-i18n="quality"></span><div class="seg" id="seg-q"><button data-v="low" data-i18n="low"></button><button data-v="high" data-i18n="high"></button></div></div>
-  <div class="opt"><span data-i18n="speed"></span><div class="seg" id="seg-speed"><button data-v="1">1×</button><button data-v="2">2×</button><button data-v="3">3×</button></div></div>
-  <button class="big" id="resume" data-i18n="resume"></button>
-  <button class="big alt" id="restart2" data-i18n="retry"></button>
-  <button class="big alt" id="howbtn" data-i18n="how"></button>
-  <button class="big alt" id="tomenu" data-i18n="mainMenu"></button>
-</div></div>
-<div class="overlay hidden" id="shop"><div class="card menu">
-  <h2>🛒 <span data-i18n="shop"></span></h2><p>💰 <b id="shopgold"></b></p>
-  <div id="shoplist"></div><button class="big" id="shopclose" data-i18n="close"></button>
-</div></div>
-<div class="overlay hidden" id="howto"><div class="card menu">
-  <h2 data-i18n="how"></h2>
-  <div class="seg tabs" id="seg-guide"><button data-v="basics" data-i18n="g_basics"></button><button data-v="towers" data-i18n="g_towers"></button><button data-v="enemies" data-i18n="g_enemies"></button></div>
-  <div id="guidebody"></div>
-  <button class="big" id="startbtn" data-i18n="gotit"></button>
-</div></div>
-<div class="overlay hidden" id="deck"><div class="card menu wide">
-  <h2 data-i18n="deckT"></h2><p id="decksub"></p>
-  <div id="deckgrid"></div>
-  <button class="big" id="deckgo" data-i18n="startGame"></button>
-  <button class="big alt" id="deckback" data-i18n="back"></button>
-</div></div>
-<div class="overlay hidden" id="over"><div class="card">
-  <h2 id="overtitle"></h2><div id="overtxt"></div>
-  <button class="big" id="overnext" data-i18n="nextLevel"></button>
-  <button class="big alt" id="overretry" data-i18n="retry"></button>
-  <button class="big alt" id="overmenu" data-i18n="mainMenu"></button>
-</div></div>
-<script type="module" src="js/main.js"></script>
-</body>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css"
+    />
+    <link rel="stylesheet" href="css/themes.css" />
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header id="top">
+      <div class="chip">
+        <span class="ic">❤️</span>
+        <div class="bar"><i id="hpfill"></i></div>
+        <b class="val" id="hptxt"></b>
+      </div>
+      <div class="chip gold" id="goldchip">
+        <span class="coin">🪙</span><b class="val" id="gold"></b>
+      </div>
+      <div class="chip">
+        <span class="ic">🗼</span><b class="val" id="towers"></b>
+      </div>
+      <div class="chip">
+        <span class="ic">🌊</span><span id="wavetxt"></span>
+        <div class="bar small"><i id="wavefill"></i></div>
+      </div>
+      <div class="grow"></div>
+      <button id="next"></button>
+      <button id="speed">⏩ 1×</button>
+      <button id="shopbtn" title="Shop">🛒</button>
+      <button id="gear" title="Settings">⚙️</button>
+    </header>
+    <div id="status">
+      <span id="st1"></span><span id="st2" class="pill"></span>
+    </div>
+    <div id="stage">
+      <main id="view">
+        <div id="toast"></div>
+        <div id="flash"></div>
+        <div id="spells"></div>
+        <div id="radial"></div>
+        <div id="panel"></div>
+        <div id="vig"></div>
+      </main>
+    </div>
+    <div class="overlay" id="menu">
+      <div class="card menu">
+        <div class="logo">🏰</div>
+        <h1 data-i18n="title"></h1>
+        <p class="sub" data-i18n="subtitle"></p>
+        <button class="big" id="m-start" data-i18n="mStart"></button>
+        <button class="big alt" id="m-records" data-i18n="mRecords"></button>
+        <button class="big alt" id="m-settings" data-i18n="settings"></button>
+        <button class="big alt" id="m-guide" data-i18n="how"></button>
+        <button class="big alt danger" id="m-reset" data-i18n="mReset"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="levels">
+      <div class="card menu wide">
+        <h2 data-i18n="mStart"></h2>
+        <div id="levelgrid"></div>
+        <button class="big alt" id="lv-back" data-i18n="back"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="records">
+      <div class="card menu wide">
+        <h2 data-i18n="mRecords"></h2>
+        <div id="recbody"></div>
+        <button class="big alt" id="rec-back" data-i18n="back"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="settings">
+      <div class="card menu">
+        <h2 data-i18n="settings"></h2>
+        <div class="opt">
+          <span data-i18n="language"></span>
+          <div class="seg" id="seg-lang">
+            <button data-v="fa">فارسی</button
+            ><button data-v="en">English</button>
+          </div>
+        </div>
+        <div class="opt">
+          <span data-i18n="theme"></span>
+          <div class="seg" id="seg-theme">
+            <button data-v="dark">🌙 <span data-i18n="dark"></span></button
+            ><button data-v="light">☀️ <span data-i18n="light"></span></button>
+          </div>
+        </div>
+        <div class="opt">
+          <span data-i18n="sound"></span>
+          <div class="seg" id="seg-sound">
+            <button data-v="on">🔊 <span data-i18n="on"></span></button
+            ><button data-v="off">🔇 <span data-i18n="off"></span></button>
+          </div>
+        </div>
+        <div class="opt">
+          <span data-i18n="volume"></span
+          ><input
+            id="vol"
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            aria-label="Volume"
+          />
+        </div>
+        <div class="opt">
+          <span data-i18n="quality"></span>
+          <div class="seg" id="seg-q">
+            <button data-v="low" data-i18n="low"></button
+            ><button data-v="high" data-i18n="high"></button>
+          </div>
+        </div>
+        <div class="opt">
+          <span data-i18n="speed"></span>
+          <div class="seg" id="seg-speed">
+            <button data-v="1">1×</button><button data-v="2">2×</button
+            ><button data-v="3">3×</button>
+          </div>
+        </div>
+        <button class="big" id="resume" data-i18n="resume"></button>
+        <button class="big alt" id="restart2" data-i18n="retry"></button>
+        <button class="big alt" id="howbtn" data-i18n="how"></button>
+        <button class="big alt" id="tomenu" data-i18n="mainMenu"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="shop">
+      <div class="card menu">
+        <h2>🛒 <span data-i18n="shop"></span></h2>
+        <p>💰 <b id="shopgold"></b></p>
+        <div id="shoplist"></div>
+        <button class="big" id="shopclose" data-i18n="close"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="howto">
+      <div class="card menu">
+        <h2 data-i18n="how"></h2>
+        <div class="seg tabs" id="seg-guide">
+          <button data-v="basics" data-i18n="g_basics"></button
+          ><button data-v="towers" data-i18n="g_towers"></button
+          ><button data-v="enemies" data-i18n="g_enemies"></button>
+        </div>
+        <div id="guidebody"></div>
+        <button class="big" id="startbtn" data-i18n="gotit"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="deck">
+      <div class="card menu wide">
+        <h2 data-i18n="deckT"></h2>
+        <p id="decksub"></p>
+        <div id="deckgrid"></div>
+        <button class="big" id="deckgo" data-i18n="startGame"></button>
+        <button class="big alt" id="deckback" data-i18n="back"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="over">
+      <div class="card">
+        <h2 id="overtitle"></h2>
+        <div id="overtxt"></div>
+        <button class="big" id="overnext" data-i18n="nextLevel"></button>
+        <button class="big alt" id="overretry" data-i18n="retry"></button>
+        <button class="big alt" id="overmenu" data-i18n="mainMenu"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="intro">
+      <div class="card">
+        <div id="introimg"></div>
+        <h2 id="introT"></h2>
+        <p id="introD"></p>
+        <div id="introdots"></div>
+        <button class="big" id="introgo"></button>
+      </div>
+    </div>
+    <script type="module" src="js/main.js"></script>
+  </body>
 </html>
