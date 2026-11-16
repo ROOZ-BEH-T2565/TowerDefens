@@ -56,6 +56,13 @@ function model(type, c, mats) { // low-poly monster facing +z
     both(k => { eye(k * s * .3, s * 2.9, s * .7, 0x55ff88); P(Cy(s * .12, s * .12, s * 1.2, 4), K, k * s * .6, s * 1.3, 0); });
   } else if (type === 'pebble') {
     P(new T.DodecahedronGeometry(s * 1.2), K, 0, s * 1.2, 0); eye(-s * .3, s * 1.4, s * .9, 0xff7a00); eye(s * .3, s * 1.4, s * .9, 0xff7a00);
+  } else if (type === 'snowling') { // little snowman: carrot nose, scarf, twig arms
+    P(Sp(s * 1.1), K, 0, s * 1.1, 0); P(Sp(s * .8), K, 0, s * 2.6, 0); P(Cn(s * .12, s * .55, 5).rotateX(Math.PI / 2), 0xff8a2a, 0, s * 2.6, s * .85);
+    P(new T.TorusGeometry(s * .6, s * .12, 6, 14).rotateX(Math.PI / 2), 0x3b82f6, 0, s * 1.95, 0);
+    both(k => { eye(k * s * .28, s * 2.8, s * .7, 0x111111); P(Cy(s * .04, s * .04, s, 4), 0x5a3a1f, k * s * 1.1, s * 1.5, 0).rotation.z = -k * .8; });
+  } else if (type === 'yeti') { // big white-furred brute with an icy face
+    P(Sp(s * 1.2), K, 0, s * 1.8, 0); P(Sp(s * .75), K, 0, s * 3.4, 0); P(Sp(s * .5), 0x9bdcf5, 0, s * 3.35, s * .35, glow(0x3aa8d8));
+    both(k => { P(Cp(s * .38, s * 1.4), K, k * s * 1.5, s * 1.8, 0); P(Sp(s * .4), K, k * s * 1.5, s * .8, s * .1); eye(k * s * .25, s * 3.55, s * .72, 0x2266ff); P(Cn(s * .14, s * .6, 5), 0xbfe8ff, k * s * .5, s * 4.1, 0); });
   } else { // dragon boss: spikes, wings, tail
     const o = { emissive: 0x551100, emissiveIntensity: .5 };
     P(Cp(s * .9, s * 2.2).rotateX(Math.PI / 2), K, 0, s * 1.6, 0, o); P(Cn(s * .6, s * 1.4).rotateX(Math.PI / 2), K, 0, s * 2.2, s * 2, o); P(Cn(s * .5, s * 2.2).rotateX(-Math.PI / 2), K, 0, s * 1.4, -s * 2.6, o);
@@ -69,8 +76,8 @@ export class Enemy {
     const c = ENEMIES[type], s = c.size;
     Object.assign(this, { c, type, wps, i: 1, slow: 0, slowMul: 1, dead: false, reached: false, progress: 0, flash: 0, t: Math.random() * 6,
       hc: c.heal ? c.heal.every : 0, ac: c.atk ? c.atk.every : 0, shield: 0, dots: {}, fxT: 0, auraC: c.aura ? c.aura.every : 0, auraT: 0,
-      healT: 0, stun: 0, dc: c.dash ? c.dash.every * .6 : 0, dashT: 0, sc: c.summon ? c.summon.every * .6 : 0, bc: c.blink ? c.blink.every * .7 : 0 });
-    this.max = this.hp = c.hp * hpMul; this.mats = [];
+      healT: 0, stun: 0, engaged: 0, tr: 0, spawnT: .35, shown: 1, ratio: 1, dc: c.dash ? c.dash.every * .6 : 0, dashT: 0, sc: c.summon ? c.summon.every * .6 : 0, bc: c.blink ? c.blink.every * .7 : 0 });
+    this.id = ++Enemy.seq; this.max = this.hp = c.hp * hpMul; this.mats = [];
     this.g = new T.Group();
     const sh = new T.Mesh(new T.CircleGeometry(s * 1.5, 16).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: 0, transparent: true, opacity: .3, depthWrite: false }));
     sh.position.y = .02; this.g.add(sh); // ground shadow
@@ -87,31 +94,24 @@ export class Enemy {
     this.fg = new T.Mesh(new T.PlaneGeometry(.5, .07), new T.MeshBasicMaterial({ color: 0x44ff66, depthTest: false }));
     bg.renderOrder = 10; this.fg.renderOrder = 11; this.fg.position.z = .001; this.bar.add(bg, this.fg); scene.add(this.bar);
   }
-  update(dt, cam, game) {
+  update(dt, cam, game) { // full simulation (host / single player)
     const c = this.c, pos = this.g.position;
-    this.t += dt; this.slow -= dt; this.shield -= dt; this.healT -= dt; this.stun -= dt;
+    this.slow -= dt; this.shield -= dt; this.healT -= dt; this.stun -= dt; this.engaged -= dt;
     if (c.dash && (this.dc -= dt) <= 0) { this.dc = c.dash.every; this.dashT = c.dash.dur; } // ability: dash
-    let move = (this.stun > 0 ? 0 : c.speed) * (this.slow > 0 ? this.slowMul : 1) * (this.dashT > 0 ? c.dash.mul : 1) * dt; this.dashT -= dt;
+    let move = (this.stun > 0 || this.engaged > 0 ? 0 : c.speed) * // blocked while fighting a soldier
+     (this.slow > 0 ? this.slowMul : 1) * (this.dashT > 0 ? c.dash.mul : 1) * dt; this.dashT -= dt;
     while (move > 0) {
       const tg = this.wps[this.i], d = pos.distanceTo(tg);
-      this.g.rotation.y = Math.atan2(tg.x - pos.x, tg.z - pos.z);
+      this.tr = Math.atan2(tg.x - pos.x, tg.z - pos.z); // target heading (eased in visual())
       if (d <= move) { pos.copy(tg); move -= d; if (++this.i >= this.wps.length) { this.reached = true; return; } }
       else { pos.addScaledVector(tg.clone().sub(pos).normalize(), move); move = 0; }
     }
     this.progress = this.i * 100 - pos.distanceTo(this.wps[this.i]);
-    const fl = this.type === 'wraith' || this.type === 'dragon' ? .15 : .06;
-    this.m.position.y = Math.abs(Math.sin(this.t * 8)) * fl; this.m.rotation.z = Math.sin(this.t * 8) * .07; // bob + sway
-    this.flash -= dt;
-    const burning = !!this.dots.burn; // status tint: burning = red/orange, healed = green, poisoned = purple
-    const tint = this.flash > 0 ? 0xffffff : burning ? (Math.sin(this.t * 25) > 0 ? 0xff2200 : 0xff8800) : this.stun > 0 ? 0xffe14d : this.healT > 0 ? 0x22ff66 : this.dots.poison ? 0x7a2fbf : 0;
-    for (const m of this.mats) m.emissive.setHex(tint || m.userData.e || (this.slow > 0 ? 0x1188aa : 0));
-    this.flame.visible = burning; if (burning) { this.flame.scale.set(1 + Math.sin(this.t * 30) * .15, .8 + Math.random() * .5, 1); this.flame.rotation.y += dt * 6; }
-    this.bar.position.copy(pos).y += this.barY; this.bar.quaternion.copy(cam.quaternion);
+    this.visual(dt, cam, game);
     for (const k in this.dots) { // burn / poison damage over time
       const d = this.dots[k]; d.t -= dt; this.takeDot(d.dps * dt * (this.shield > 0 ? .5 : 1));
       if (d.t <= 0) delete this.dots[k];
     }
-    if (Object.keys(this.dots).length && (this.fxT -= dt) <= 0) { this.fxT = .25; game.fx.burst(pos.clone().setY(c.size * 3), burning ? 0xff7722 : 0x77ff44, 3, .9, .05); }
     const au = c.aura; // ability: bubble, allies inside take 50% less damage
     if (au) {
       if ((this.auraC -= dt) <= 0) { this.auraC = au.every; this.auraT = au.dur; }
@@ -137,10 +137,27 @@ export class Enemy {
     if (c.blink && (this.bc -= dt) <= 0) { // ability: blink forward along the path
       this.bc = c.blink.every; game.fx.burst(pos.clone().setY(.5), 0xbb66ff, 10, 2, .08); this.advance(c.blink.dist); game.fx.burst(pos.clone().setY(.5), 0xbb66ff, 10, 2, .08);
     }
+  }
+  visual(dt, cam, game) { // purely visual (also used by remote enemies on multiplayer clients): smooth turning, pop-in, bob, status tint, flame, HP bar, particles
+    const c = this.c, pos = this.g.position, burning = !!this.dots.burn;
+    this.t += dt; this.flash -= dt;
+    let da = this.tr - this.g.rotation.y; da = Math.atan2(Math.sin(da), Math.cos(da)); this.g.rotation.y += da * Math.min(1, dt * 12); // eased heading
+    if (this.spawnT > 0) { this.spawnT -= dt; const k = Math.min(1, Math.max(0, 1 - this.spawnT / .35)); this.g.scale.setScalar(Math.max(.05, 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow(k - 1, 2))); } // ease-out-back pop-in
+    else this.g.scale.setScalar(1);
+    const fl = this.type === 'wraith' || this.type === 'dragon' ? .15 : .06;
+    this.m.position.y = Math.abs(Math.sin(this.t * 8)) * fl; this.m.rotation.z = Math.sin(this.t * 8) * .07; // bob + sway
+    const tint = this.flash > 0 ? 0xffffff : burning ? (Math.sin(this.t * 25) > 0 ? 0xff2200 : 0xff8800) : this.stun > 0 ? 0xffe14d : this.healT > 0 ? 0x22ff66 : this.dots.poison ? 0x7a2fbf : 0; // burning red, healed green, poisoned purple
+    for (const m of this.mats) m.emissive.setHex(tint || m.userData.e || (this.slow > 0 ? 0x1188aa : 0));
+    this.flame.visible = burning; if (burning) { this.flame.scale.set(1 + Math.sin(this.t * 30) * .15, .8 + Math.random() * .5, 1); this.flame.rotation.y += dt * 6; }
+    if (this.bubble) this.bubble.visible = this.auraT > 0;
+    this.shown += (this.ratio - this.shown) * Math.min(1, dt * 10); // smoothly sliding HP bar
+    this.fg.scale.x = this.shown; this.fg.position.x = -(1 - this.shown) * .25;
+    this.bar.position.copy(pos).y += this.barY; this.bar.quaternion.copy(cam.quaternion);
+    if ((burning || this.dots.poison) && (this.fxT -= dt) <= 0) { this.fxT = .25; game.fx.burst(pos.clone().setY(c.size * 3), burning ? 0xff7722 : 0x77ff44, 3, .9, .05); }
     if (this.stun > 0 && Math.random() < .35) game.fx.burst(pos.clone().setY(c.size * 4.2), 0xffe14d, 1, 1.2, .05); // stun sparks
     if (this.dashT > 0 && Math.random() < .5) game.fx.burst(pos.clone().setY(.1), 0xd9c9a0, 1, 1, .06);
   }
-  setBar() { const r = Math.max(this.hp / this.max, .001); this.fg.scale.x = r; this.fg.position.x = -(1 - r) * .25; }
+  setBar() { this.ratio = Math.max(this.hp / this.max, .001); }
   heal(v) { this.hp = Math.min(this.max, this.hp + v); this.healT = .9; this.setBar(); }
   takeDot(v) { this.hp -= v; this.setBar(); if (this.hp <= 0) this.dead = true; }
   addDot(kind, dps, t) { const d = this.dots[kind]; if (!d || dps >= d.dps) this.dots[kind] = { dps, t }; else d.t = Math.max(d.t, t); }
@@ -168,3 +185,4 @@ export class Enemy {
     [this.g, this.bar].forEach(o => o.traverse(m => { m.geometry?.dispose(); m.material?.dispose(); }));
   }
 }
+Enemy.seq = 0; // unique ids (used to match enemies in multiplayer snapshots)

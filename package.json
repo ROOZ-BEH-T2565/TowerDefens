@@ -1,0 +1,8 @@
+{
+  "name": "tower-defense-3d",
+  "version": "2.0.0",
+  "description": "3D tower defense (Three.js) with campaign, endless mode and LAN co-op multiplayer",
+  "scripts": { "start": "node server/server.js" },
+  "engines": { "node": ">=16" },
+  "license": "MIT"
+}

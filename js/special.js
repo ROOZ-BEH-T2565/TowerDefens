@@ -44,11 +44,16 @@ export class Sweeper {
     }
     this.body = b; this.g.add(b);
   }
+  setState(rep, ang, hp, cost) { // multiplayer client: mirror the host's sweeper
+    this.angle = ang; this.tri.rotation.y = ang; this.hp = hp; this.cost = cost;
+    if (rep !== this.repaired) { this.repaired = rep; this.build(); this.tri.visible = rep; }
+  }
   update(dt, game) {
     if (!this.enabled) return;
     const r = Math.max(this.hp / this.maxHp, .001);
     this.bar.visible = this.repaired && this.hp < this.maxHp; this.fg.scale.x = r; this.fg.position.x = -(1 - r) * .35; this.bar.quaternion.copy(game.sc.cam.quaternion);
     if (!this.repaired) return;
+    if (game.remote) { this.rotor.rotation.y += dt * (this.blast > 0 ? 18 : 3); this.blast -= dt; this.tri.material.opacity = .14 + Math.max(0, this.blast) * .5; return; } // client: visuals only
     this.tri.material.opacity = .14 + Math.max(0, this.blast) * .5; // zone flashes when the wind blows
     this.rotor.rotation.y += dt * (this.blast > 0 ? 18 : 3); this.blast -= dt; this.cd -= dt;
     if (this.cd > 0) return;

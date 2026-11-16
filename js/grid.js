@@ -1,6 +1,7 @@
 // Tile grid for the current level: path, fixed build plots (the only buildable tiles), themed colours.
 import * as THREE from 'three';
 import { GRID, pathTiles, plotsFor } from './config.js';
+import { terrainTextures } from './textures.js';
 export const wp = (x, y) => new THREE.Vector3(x - (GRID - 1) / 2, 0, y - (GRID - 1) / 2);
 export class Grid {
   constructor(scene) { this.scene = scene; this.occ = new Map(); this.meshes = []; this.hl = null; this.root = null; this.pathSet = new Set(); this.plotSet = new Set(); this.waypoints = []; }
@@ -9,10 +10,12 @@ export class Grid {
     const root = this.root = new THREE.Group(), th = L.theme;
     this.meshes = []; this.occ.clear(); this.hl = null; this.pathSet = pathTiles(L.path);
     const plots = plotsFor(L); this.plotSet = new Set(plots.map(p => p.join(','))); this.waypoints = L.path.map(([x, y]) => wp(x, y));
+    const TX = terrainTextures(th.style || 'grass');
     const geo = new THREE.BoxGeometry(.96, .2, .96), light = c => new THREE.Color(c).lerp(new THREE.Color(0xffffff), .2);
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
       const k = x + ',' + y, p = this.pathSet.has(k), pl = this.plotSet.has(k), base = th.tile[(x + y) % 2];
-      const mat = new THREE.MeshStandardMaterial(p ? { color: th.path, roughness: .7, emissive: new THREE.Color(th.path).multiplyScalar(.25) } : { color: pl ? light(base) : base, roughness: .8, emissive: 0x000000 });
+      const mat = new THREE.MeshStandardMaterial(p ? { color: th.path, map: TX.path, bumpMap: TX.pathBump, bumpScale: .7, roughness: .75, envMapIntensity: .4, emissive: new THREE.Color(th.path).multiplyScalar(.25) }
+        : { color: pl ? light(base) : base, map: TX.tile, bumpMap: TX.tileBump, bumpScale: .9, roughness: .85, envMapIntensity: .4, emissive: 0x000000 });
       const m = new THREE.Mesh(geo, mat); m.position.copy(wp(x, y)); m.position.y = -.1; m.receiveShadow = true; m.userData = { x, y, path: p, plot: pl };
       root.add(m); this.meshes.push(m);
     }

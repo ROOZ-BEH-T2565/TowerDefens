@@ -136,3 +136,64 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .stars.big{font-size:34px;text-align:center}
 #recbody{max-height:55dvh;overflow:auto;text-align:start}
 .card .dk.lock{opacity:.5}
+
+/* radial: keep the centering transform while pressed (the generic button:active scale used to shift it away = hard to click) */
+.rb:active{transform:translate(-50%,-50%) scale(.94)}
+.rb.sel .ic{color:#34d399;font-size:28px;font-weight:700}
+/* chapters, intro, lightning flash */
+.chap{grid-column:1/-1;font-weight:700;margin-top:8px;padding-bottom:2px;border-bottom:1px solid var(--border)}
+#introimg{text-align:center}.th.big{width:110px;height:110px}
+#introdots{text-align:center;color:var(--accent);letter-spacing:4px;margin:6px 0}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:6;transition:opacity .3s}
+#flash.on{opacity:.65;transition:none}
+
+/* Full-screen menu pages (main menu, stage select, records) - not modals */
+.overlay.page{background:linear-gradient(160deg,#0b1020,#1b2450 55%,#2a1b4d);padding:0;flex-direction:column;justify-content:flex-start;align-items:center;overflow:auto}
+[data-theme=light] .overlay.page{background:linear-gradient(160deg,#e6eeff,#b9ccff 60%,#d9c9ff)}
+#menu{justify-content:center}
+.page .card{background:transparent;border:0;box-shadow:none}
+.menubox{width:min(92%,380px);display:flex;flex-direction:column}
+.menubox .big{margin-top:10px;font-size:17px;padding:14px}
+.menubox h1{font-size:34px}
+.logo.float{font-size:84px;animation:floaty 3s ease-in-out infinite}
+@keyframes floaty{50%{transform:translateY(-8px)}}
+.foot{text-align:center;color:var(--muted);font-size:13px}
+.pagehead{display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.18)}
+.pagehead h2{margin:0}
+.pagebody{width:100%;max-width:960px;padding:12px 16px;overflow:auto;flex:1;text-align:start}
+/* locked towers: frosted + blurred, only the lock label is readable */
+.card .dk.lock{position:relative;overflow:hidden}
+.dk.lock .fog{filter:blur(6px) grayscale(1);opacity:.55;display:flex;flex-direction:column;gap:3px;align-items:center;pointer-events:none}
+.dk.lock::after{content:'';position:absolute;inset:0;background:rgba(150,160,190,.28);backdrop-filter:blur(3px)}
+.dk.lock .lklabel{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:700;font-size:13px;color:var(--text);text-shadow:0 0 6px var(--bg)}
+.gi.lock .fog{filter:blur(6px) grayscale(1);opacity:.6}
+/* zoom buttons */
+#zoombtns{position:absolute;inset-inline-end:8px;top:10px;z-index:3;display:flex;flex-direction:column;gap:6px}
+#zoombtns button{width:44px;height:44px;padding:0;font-size:20px}
+
+/* Endless / lobby pages, form controls */
+.hidden{display:none!important}
+.pagebody.card{max-width:960px;text-align:start;padding:12px 16px}
+.card .lv.sel{outline:2px solid var(--accent);background:rgba(34,211,238,.16)}
+#diffgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin:8px 0}
+#mapgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin:8px 0}
+#mapgrid .lv{min-height:48px}
+input[type=text],select{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px;font:inherit;min-width:140px;max-width:100%}
+#lbcode{text-transform:uppercase;letter-spacing:6px;width:110px;text-align:center;min-width:0}
+.codebig{font-size:46px;letter-spacing:10px;font-weight:700;color:var(--accent);text-align:center;margin:6px 0;direction:ltr}
+.hint{color:var(--muted);font-size:13px}
+#st3{font-size:12px}
+/* smoother UI motion */
+button{transition:transform .12s,box-shadow .18s,background .18s,opacity .18s}
+button:hover:not(:disabled){box-shadow:0 0 16px rgba(34,211,238,.35)}
+.overlay{animation:fadein .22s ease-out}
+.card{animation:cardin .28s cubic-bezier(.2,1.2,.4,1)}
+@keyframes fadein{from{opacity:0}}
+@keyframes cardin{from{opacity:0;transform:translateY(12px) scale(.97)}}
+#panel{animation:rise .22s ease-out}
+@keyframes rise{from{opacity:0;transform:translateX(-50%) translateY(16px)}}
+#radial.open .rb{animation:rbpop .24s cubic-bezier(.2,1.5,.4,1) backwards}
+#radial.open .rb:nth-child(3){animation-delay:.04s}#radial.open .rb:nth-child(4){animation-delay:.08s}#radial.open .rb:nth-child(5){animation-delay:.12s}
+@keyframes rbpop{from{transform:translate(-50%,-50%) scale(.1);opacity:0}}
+.rring{transition:width .2s,height .2s}
+.toast,#toast{transition:opacity .3s,transform .3s}

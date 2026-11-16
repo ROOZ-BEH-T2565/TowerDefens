@@ -4,7 +4,7 @@ import { elemMult } from './config.js';
 export class Projectile {
   constructor(from, target, tower, scene) {
     this.target = target; this.dmg = tower.dmg; this.scale = tower.dmg / tower.def.dmg; this.def = tower.def; this.scene = scene; this.done = false;
-    this.chain = tower.def.chain ? tower.def.chain + Math.floor((tower.level - 1) / 2) : 0;
+    this.chain = tower.chainN || 0; // tesla: chain lightning from level 4
     const r = tower.type === 'sniper' ? .06 : tower.type === 'mortar' ? .16 : .09;
     this.mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 8), new THREE.MeshBasicMaterial({ color: this.def.proj }));
     this.mesh.position.copy(from); scene.add(this.mesh);
@@ -70,6 +70,10 @@ export class Effects {
     const m = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .8, depthWrite: false }));
     m.position.copy(pos); this.scene.add(m); this.misc.push({ m, life: .5, max: .5, r: radius, k: 'ball' });
   }
+  mark(pos, color, radius, life) { // pulsing warning ring (e.g. where lightning is about to strike)
+    const m = new THREE.Mesh(new THREE.RingGeometry(.8, 1, 36).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .8, side: THREE.DoubleSide, depthWrite: false }));
+    m.position.copy(pos).y = .09; m.scale.setScalar(radius); this.scene.add(m); this.misc.push({ m, life, max: life, r: radius, k: 'mark' });
+  }
   ring(pos, color, radius) { // expanding shockwave ring
     const m = new THREE.Mesh(new THREE.RingGeometry(.85, 1, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: false }));
     m.position.copy(pos).y = .08; this.scene.add(m); this.misc.push({ m, life: .45, max: .45, r: radius, k: 'ring' });
@@ -86,7 +90,7 @@ export class Effects {
   }
   update(dt) {
     for (let i = this.misc.length - 1; i >= 0; i--) {
-      const o = this.misc[i]; o.life -= dt; const f = Math.max(o.life / o.max, 0); o.m.material.opacity = f;
+      const o = this.misc[i]; o.life -= dt; const f = Math.max(o.life / o.max, 0); o.m.material.opacity = f; if (o.k === 'mark') o.m.material.opacity = .45 + .4 * Math.sin(o.life * 30);
       if (o.k === 'ring') o.m.scale.setScalar(Math.max(.1, o.r * (1 - f) + .2));
       if (o.k === 'ball') o.m.scale.setScalar(Math.max(.1, o.r * (1 - f) + .15));
       if (o.life <= 0) { this.scene.remove(o.m); o.m.geometry.dispose(); o.m.material.dispose(); this.misc.splice(i, 1); }

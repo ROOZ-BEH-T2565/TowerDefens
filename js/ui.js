@@ -1,17 +1,20 @@
 // UIManager: main menu, level select, deck, HUD, radial build/upgrade/sell menu, bottom info window, guide, settings, shop, spells.
 import * as THREE from 'three';
-import { TOWERS, ENEMIES, ELEM, LEVELS, ENEMY_LEVEL, START_HP, DECK_SIZE, waveDef, SPELLS, towerStats } from './config.js';
+import { TOWERS, ENEMIES, ELEM, LEVELS, CHAPTERS, INTRO_TOWER, INTRO_SPELL, ENEMY_LEVEL, START_HP, DECK_SIZE, waveDef, SPELLS, towerStats, towersFor, spellsFor, PLAYER_COLORS, DIFFS } from './config.js';
+import { Net, NetHost } from './net.js';
 import { i18n, t } from './i18n.js';
 import { wp } from './grid.js';
 import { thumb } from './thumbs.js';
 import { Save } from './save.js';
 const $ = id => document.getElementById(id);
-const OVERLAYS = ['menu', 'levels', 'records', 'settings', 'shop', 'howto', 'deck'];
+const OVERLAYS = ['menu', 'levels', 'records', 'settings', 'shop', 'howto', 'deck', 'intro', 'endless', 'lobby'];
 const fmt = v => v >= 10 ? String(Math.round(v)) : String(Math.round(v * 10) / 10);
 const RR = 58; // radial menu radius (px)
 export class UIManager {
   constructor(game, audio, sc) {
     this.game = game; this.audio = audio; this.sc = sc; this.sel = null; this.acc = 0; this.armed = null; this.spkey = ''; this.nl = ''; this.gtab = 'basics'; this.rkey = ''; this.pkey = ''; this.levelIdx = 0;
+    this.hostGame = game; this.remoteGame = null; this.net = new Net(this); this.mode = null; this.plk = ''; this.lbDiff = 'normal';
+    try { this.en = JSON.parse(localStorage.getItem('td_en') || 'null'); } catch (e) { this.en = null; } this.en = this.en || { map: 0, diff: 'normal' };
     this.speed = +(localStorage.getItem('td_speed') || 1); this.q = localStorage.getItem('td_q') || 'high';
     try { this.deck = JSON.parse(localStorage.getItem('td_deck') || '[]'); } catch (e) { this.deck = []; }
     this.ring = new THREE.Mesh(new THREE.RingGeometry(.97, 1, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: .85 }));
@@ -37,16 +40,28 @@ export class UIManager {
     on('deckgo', () => this.startLevel(this.levelIdx, this.deck.slice()));
     // in-game buttons
     on('gear', () => this.show('settings')); on('resume', () => this.hide('settings'));
+    on('zin', () => this.sc.zoomBy(1 / 1.2)); on('zout', () => this.sc.zoomBy(1.2)); on('zreset', () => this.sc.resetView(true)); // map zoom
     on('speed', () => { this.setSpeed(this.speed % 3 + 1); this.segs(); });
     on('next', () => g.startWave(true)); // start the next wave now (bonus gold)
     on('shopbtn', () => this.openShop()); on('shopclose', () => this.hide('shop'));
-    on('restart2', () => { this.hide('settings'); this.startLevel(g.levelIdx, g.deck.slice()); });
+    on('restart2', () => this.retry());
     on('tomenu', () => this.showMenu());
     on('howbtn', () => { $('settings').classList.add('hidden'); this.openGuide(); });
     on('startbtn', () => { localStorage.setItem('td_seen', '1'); this.hide('howto'); });
     on('overnext', () => { $('over').classList.add('hidden'); this.levelIdx = g.levelIdx + 1; this.openDeck(); });
-    on('overretry', () => { $('over').classList.add('hidden'); this.startLevel(g.levelIdx, g.deck.slice()); });
-    on('overmenu', () => this.showMenu());
+    on('overretry', () => this.retry());
+    on('m-endless', () => this.openEndless()); on('en-back', () => { $('endless').classList.add('hidden'); this.show('menu'); });                    // endless mode
+    $('diffgrid').onclick = e => { const b = e.target.closest('button'); if (!b) return; a.play('click'); this.en.diff = b.dataset.d; this.renderEndless(); };
+    $('mapgrid').onclick = e => { const b = e.target.closest('button'); if (!b) return; a.play('click'); this.en.map = +b.dataset.m; this.renderEndless(); };
+    on('en-start', () => this.startEndless(this.en.map, this.en.diff));
+    on('m-multi', () => this.openLobby());                                                                                                              // multiplayer lobby
+    on('lb-back', () => { this.net.close(); $('lobby').classList.add('hidden'); this.show('menu'); });
+    on('lb-create', () => this.lobbyDo(() => this.net.create($('lbname').value)));
+    on('lb-join', () => this.lobbyDo(() => this.net.join($('lbcode').value, $('lbname').value)));
+    on('lb-leave', () => { this.net.close(); this.renderLobby(); });
+    on('lb-start', () => this.net.start({ map: +$('lbmap').value, diff: this.lbDiff }));
+    $('seg-ldiff').onclick = e => { const b = e.target.closest('button'); if (!b) return; a.play('click'); this.lbDiff = b.dataset.v; this.renderLobby(); };
+    on('overmenu', () => this.showMenu()); on('introgo', () => this.introNext());
     $('shoplist').onclick = e => { const b = e.target.closest('button'); if (!b || b.disabled) return; click(); g.buySpell(b.dataset.k); this.renderShop(); };
     $('spells').onclick = e => { const b = e.target.closest('button'); if (!b) return; click(); this.useSpell(b.dataset.s); };
     const act = e => { const b = e.target.closest('button'); if (!b || b.disabled) return; click(); this.act(b.dataset.a, b); };
@@ -56,30 +71,90 @@ export class UIManager {
   // ---- overlays / flow
   show(id) { $(id).classList.remove('hidden'); this.sync(); }
   hide(id) { $(id).classList.add('hidden'); this.sync(); }
-  sync() { this.game.paused = OVERLAYS.some(id => !$(id).classList.contains('hidden')); } // paused whenever a menu is open
-  showMenu() { ['levels', 'records', 'settings', 'deck', 'over', 'shop', 'howto'].forEach(i => $(i).classList.add('hidden')); this.armed = null; this.select(null); this.show('menu'); }
+  sync() { this.game.paused = this.game.mp ? false : OVERLAYS.some(id => !$(id).classList.contains('hidden')); } // paused whenever a menu is open (multiplayer never pauses)
+  showMenu() { this.leaveMp(); ['levels', 'records', 'settings', 'deck', 'over', 'shop', 'howto', 'intro', 'endless', 'lobby'].forEach(i => $(i).classList.add('hidden')); this.armed = null; this.select(null); this.menuStats(); this.show('menu'); }
+  menuStats() { const d = Save.data, done = Object.keys(d.done).length, stars = Object.values(d.done).reduce((a, b) => a + b, 0); $('menustats').textContent = `⭐ ${stars}/${LEVELS.length * 3} · ${t('stage')} ${done}/${LEVELS.length}`; }
   openGuide() { this.guide(this.gtab); this.show('howto'); }
   openShop() { this.renderShop(); this.show('shop'); }
   openLevels() { this.renderLevels(); $('menu').classList.add('hidden'); this.show('levels'); }
   startLevel(i, deck) {
-    $('deck').classList.add('hidden'); $('over').classList.add('hidden'); this.armed = null; this.select(null); this.game.start(i, deck);
+    this.leaveMp(); $('deck').classList.add('hidden'); $('over').classList.add('hidden'); this.armed = null; this.select(null); this.game.start(i, deck); this.mode = 'campaign';
     const L = LEVELS[i]; this.toast(`${t('stage')} ${i + 1}: ${L.name[i18n.lang]}${L.sweeper ? ' — 🌀 ' + t('sweeperHint') : ''}`);
-    this.refresh(); this.sync(); if (!localStorage.getItem('td_seen')) this.openGuide();
+    this.refresh(); this.sync(); this.showIntro(i);
   }
-  renderLevels() {
-    const d = Save.data;
-    $('levelgrid').innerHTML = LEVELS.map((L, i) => { const open = Save.levelOpen(i), st = d.done[i] || 0;
-      return `<button class="lv ${open ? '' : 'lock'}" data-i="${i}" ${open ? '' : 'disabled'}><b>${i + 1}. ${L.name[i18n.lang]}</b><span class="stars">${'★'.repeat(st)}${'☆'.repeat(3 - st)}</span>
+  renderLevels() { // stages grouped by chapter
+    const d = Save.data; let h = '', ch = -1;
+    LEVELS.forEach((L, i) => {
+      if (L.ch !== ch) { ch = L.ch; const c = CHAPTERS[ch]; h += `<div class="chap">${c.icon} ${c.name[i18n.lang]}</div>`; }
+      const open = Save.levelOpen(i), st = d.done[i] || 0, tw = INTRO_TOWER[i], sp = INTRO_SPELL[i];
+      h += `<button class="lv ${open ? '' : 'lock'}" data-i="${i}" ${open ? '' : 'disabled'}><b>${i + 1}. ${L.name[i18n.lang]}</b><span class="stars">${'★'.repeat(st)}${'☆'.repeat(3 - st)}</span>
         <small>${open ? `${t('waves')}: ${L.waves}${d.best[i] ? ` · ${t('best')}: ${d.best[i]}` : ''}` : '🔒 ' + t('locked')}</small>${L.sweeper ? `<small>🌀 ${t('sweeper')}</small>` : ''}
-        ${L.unlock ? `<small class="rw">🎁 <img class="th s" src="${thumb('tower', L.unlock, 1)}" alt=""> ${t(L.unlock)}</small>` : ''}</button>`; }).join('');
+        ${tw || sp ? `<small class="rw">🎁 ${tw ? `<img class="th s" src="${thumb('tower', tw, 1)}" alt=""> ${t(tw)}` : ''} ${sp ? SPELLS[sp].icon + ' ' + t('sp_' + sp) : ''}</small>` : ''}</button>`;
+    });
+    $('levelgrid').innerHTML = h;
   }
   renderRecords() {
     const d = Save.data, s = d.stats;
     $('recbody').innerHTML = `<div class="gi"><div><b>${t('games')}: ${s.games} · ${t('wins')}: ${s.wins} · ${t('kills')}: ${s.kills}</b></div></div>` +
-      LEVELS.map((L, i) => `<div class="gi"><div><b>${i + 1}. ${L.name[i18n.lang]}</b><small><span class="stars">${'★'.repeat(d.done[i] || 0)}${'☆'.repeat(3 - (d.done[i] || 0))}</span> · ${t('best')}: ${d.best[i] || 0}/${L.waves}</small></div></div>`).join('');
+      LEVELS.map((L, i) => `<div class="gi"><div><b>${i + 1}. ${L.name[i18n.lang]}</b><small><span class="stars">${'★'.repeat(d.done[i] || 0)}${'☆'.repeat(3 - (d.done[i] || 0))}</span> · ${t('best')}: ${d.best[i] || 0}/${L.waves}</small></div></div>`).join('') + `<div class="gi"><div><b>♾ ${t('mEndless')}</b><small>${['easy', 'normal', 'hard'].map(k => t(k) + ': ' + ((d.endless || {})[k] || 0)).join(' · ')}</small></div></div>`;
+  }
+  // ---- endless mode: every tower, spell and enemy; three difficulties
+  openEndless() { this.renderEndless(); $('menu').classList.add('hidden'); this.show('endless'); }
+  renderEndless() {
+    $('diffgrid').innerHTML = ['easy', 'normal', 'hard'].map(k => { const D = DIFFS[k];
+      return `<button class="lv ${this.en.diff === k ? 'sel' : ''}" data-d="${k}"><b>${{ easy: '🟢', normal: '🟡', hard: '🔴' }[k]} ${t(k)}</b><small>${t('enemyHp')} ×${D.hp} · +${Math.round(D.growth * 100)}% / ${t('wave')}</small><small>💰${D.gold} · ❤️${D.baseHp}</small></button>`; }).join('');
+    let h = '', ch = -1;
+    LEVELS.forEach((L, i) => { if (L.ch !== ch) { ch = L.ch; const c = CHAPTERS[ch]; h += `<div class="chap">${c.icon} ${c.name[i18n.lang]}</div>`; }
+      h += `<button class="lv ${this.en.map === i ? 'sel' : ''}" data-m="${i}"><b>${i + 1}. ${L.name[i18n.lang]}</b></button>`; });
+    $('mapgrid').innerHTML = h;
+  }
+  startEndless(map, diff) {
+    this.leaveMp(); ['endless', 'over', 'deck', 'levels', 'menu', 'settings'].forEach(i => $(i).classList.add('hidden')); this.armed = null; this.select(null);
+    this.game.startEndless(map, diff, 1); this.mode = 'endless'; localStorage.setItem('td_en', JSON.stringify(this.en));
+    this.toast(`♾ ${t(diff)} · ${LEVELS[map].name[i18n.lang]}`); this.refresh(); this.sync();
+  }
+  retry() { const g = this.game; $('over').classList.add('hidden'); $('settings').classList.add('hidden'); if (g.mp) return; if (g.level.endless) this.startEndless(g.levelIdx, g.level.diff); else this.startLevel(g.levelIdx, g.deck.slice()); }
+  spellOk(k) { const g = this.game; return g.level.endless || spellsFor(g.levelIdx).has(k); }
+  // ---- multiplayer: lobby, starting, leaving
+  attach(remote) { this.remoteGame = remote; }
+  useGame(g) { if (this.game === g) return; this.game.clearWorld(); this.game.paused = true; this.game = g; g.ui = this; g.paused = false; this.sel = null; g.grid.highlight(null); }
+  leaveMp() {
+    if (this.net.role || this.net.active) this.net.close();
+    if (this.game !== this.hostGame) { this.useGame(this.hostGame); this.hostGame.start(0, ['cannon']); }
+    this.hostGame.mp = false; this.mode = null;
+  }
+  openLobby() { $('lbname').value = localStorage.getItem('td_name') || 'Player'; $('lbserver').value = localStorage.getItem('td_server') || location.host || 'localhost:8080'; this.renderLobby(); $('menu').classList.add('hidden'); this.show('lobby'); }
+  async lobbyDo(fn) {
+    localStorage.setItem('td_name', $('lbname').value); localStorage.setItem('td_server', $('lbserver').value);
+    if (!this.net.active) { this.toast(t('lbConnecting')); try { await this.net.connect($('lbserver').value.trim() || location.host); } catch (e) { return this.toast(t('lbFailed')); } }
+    fn();
+  }
+  renderLobby() {
+    const n = this.net, inRoom = !!n.role; $('lbconn').classList.toggle('hidden', inRoom); $('lbroom').classList.toggle('hidden', !inRoom); if (!inRoom) return;
+    $('lbcodeshow').textContent = n.code;
+    $('lbplayers').innerHTML = n.players.map(p => `<div class="gi"><b style="color:#${PLAYER_COLORS[p.id % 4].toString(16).padStart(6, '0')}">●</b> <b>${p.name}</b> ${p.id === 0 ? '👑 ' + t('lbHost') : ''} ${p.id === n.id ? '(' + t('lbYou') + ')' : ''}</div>`).join('');
+    $('lbhost').classList.toggle('hidden', n.role !== 'host'); $('lbwait').classList.toggle('hidden', n.role === 'host');
+    if (n.role === 'host') {
+      if (!$('lbmap').options.length) $('lbmap').innerHTML = LEVELS.map((L, i) => `<option value="${i}">${i + 1}. ${CHAPTERS[L.ch].icon} ${L.name[i18n.lang]}</option>`).join('');
+      $('seg-ldiff').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === this.lbDiff));
+    }
+  }
+  netStart(cfg, players) { // the host pressed Start: everyone enters the same map
+    const host = this.net.role === 'host';
+    ['lobby', 'menu', 'levels', 'endless', 'over', 'deck', 'records', 'settings'].forEach(i => $(i).classList.add('hidden')); this.armed = null; this.select(null);
+    if (host) { this.useGame(this.hostGame); this.hostGame.startEndless(cfg.map, cfg.diff, players.length); this.net.host = new NetHost(this.net, this.hostGame); }
+    else { const g = this.remoteGame; this.useGame(g); g.conn = this.net; g.mp = true; g.startEndless(cfg.map, cfg.diff, players.length); }
+    this.mode = 'mp'; this.toast(`👥 ${players.map(p => p.name).join(', ')}`); this.refresh(); this.sync();
+  }
+  netLeft(id) { this.toast('👋 ' + t('lbLeft')); this.hud(); }
+  netError(msg) { this.toast(t({ noroom: 'lbNoRoom', started: 'lbStarted', full: 'lbFull' }[msg] || 'lbFailed')); }
+  netClosed(reason) {
+    const wasMp = this.mode === 'mp', inLobby = !$('lobby').classList.contains('hidden'); this.net.close();
+    if (wasMp || inLobby) this.toast(t(reason === 'host' ? 'lbClosed' : 'lbLost'));
+    if (wasMp) this.showMenu(); else this.renderLobby();
   }
   // ---- deck (only unlocked towers can be taken into a level)
-  avail() { const u = Save.towers(); return Object.keys(TOWERS).filter(k => u.has(k)); }
+  avail() { const u = Save.towers(), f = towersFor(this.levelIdx); return Object.keys(TOWERS).filter(k => u.has(k) && f.has(k)); } // stage 1: cannon only
   openDeck() {
     const av = this.avail(), size = Math.min(DECK_SIZE, av.length);
     this.deck = this.deck.filter(k => av.includes(k)).slice(0, size);
@@ -91,19 +166,20 @@ export class UIManager {
     if (i >= 0) this.deck.splice(i, 1); else if (this.deck.length < size) this.deck.push(k);
     this.renderDeck();
   }
-  renderDeck() {
-    const u = Save.towers(), size = Math.min(DECK_SIZE, u.size), L = LEVELS[this.levelIdx];
+  renderDeck() { // locked towers are shown frosted/blurred with only a lock label
+    const av = this.avail(), size = Math.min(DECK_SIZE, av.length), L = LEVELS[this.levelIdx];
     $('decksub').textContent = `${t('stage')} ${this.levelIdx + 1}: ${L.name[i18n.lang]} · ${t('deckSub')} ${this.deck.length}/${size}`;
-    $('deckgrid').innerHTML = Object.keys(TOWERS).map(k => { const d = TOWERS[k], open = u.has(k), at = LEVELS.findIndex(x => x.unlock === k) + 1;
-      return `<button class="dk ${this.deck.includes(k) ? 'sel' : ''} ${open ? '' : 'lock'}" data-k="${k}" ${open ? '' : 'disabled'}><img class="th" src="${thumb('tower', k, 1)}" alt=""><b>${t(k)} ${ELEM[d.elem]}</b>
-        <small>💰${d.cost} · ${t('dmg')} ${d.dmg} · ${t('range')} ${d.range}</small><small>${open ? t('tw_' + k) : '🔒 ' + t('unlockAt') + ' ' + at}</small></button>`; }).join('');
+    $('deckgrid').innerHTML = Object.keys(TOWERS).map(k => { const d = TOWERS[k], open = av.includes(k), at = (+Object.keys(INTRO_TOWER).find(i => INTRO_TOWER[i] === k) || 0) + 1;
+      return open
+        ? `<button class="dk ${this.deck.includes(k) ? 'sel' : ''}" data-k="${k}"><img class="th" src="${thumb('tower', k, 1)}" alt=""><b>${t(k)} ${ELEM[d.elem]}</b><small>💰${d.cost} · ${t('dmg')} ${d.dmg} · ${t('range')} ${d.range}</small><small>${t('tw_' + k)}</small></button>`
+        : `<button class="dk lock" disabled><span class="fog"><img class="th" src="${thumb('tower', k, 1)}" alt=""><b>${t(k)}</b><small>${t('tw_' + k)}</small></span><span class="lklabel">🔒 ${t('unlockAt')} ${at}</span></button>`; }).join('');
     $('deckgo').disabled = this.deck.length !== size;
   }
   // ---- guide: basics / towers / enemies with real model thumbnails
   guide(tab) {
     this.gtab = tab; let h = '';
     if (tab === 'basics') h = '<ul>' + [1, 2, 3, 4, 5, 6].map(i => `<li>${t('h' + i)}</li>`).join('') + '</ul>';
-    else if (tab === 'towers') h = Object.keys(TOWERS).map(k => { const d = TOWERS[k];
+    else if (tab === 'towers') h = Object.keys(TOWERS).map(k => { const d = TOWERS[k]; if (!Save.towers().has(k)) return `<div class="gi lock"><div class="imgs fog"><img class="th" src="${thumb('tower', k, 1)}" alt=""></div><div><b>🔒 ???</b><small>${t('unlockAt')} ${(+Object.keys(INTRO_TOWER).find(i => INTRO_TOWER[i] === k) || 0) + 1}</small></div></div>`;
       return `<div class="gi"><div class="imgs"><img class="th" src="${thumb('tower', k, 1)}" alt=""><img class="th" src="${thumb('tower', k, 6)}" alt=""></div><div><b>${t(k)} ${ELEM[d.elem]} ${t('el_' + d.elem)}</b><small>💰${d.cost} · ${t('dmg')} ${d.dmg} · ${t('range')} ${d.range} · ${t('rate')} ${d.rate} · ${t('hpT')} ${d.hp}</small><p>${t('tw_' + k)}</p></div></div>`; }).join('');
     else h = Object.keys(ENEMIES).filter(k => !ENEMIES[k].mini).map(k => { const c = ENEMIES[k];
       return `<div class="gi"><div class="imgs"><img class="th" src="${thumb('enemy', k)}" alt=""></div><div><b>${t(k)} ${ELEM[c.elem]} ${t('el_' + c.elem)}</b><small>${t('stage')} ${ENEMY_LEVEL[k]}+ · ${t('hpT')} ${c.hp} · ${t('moveSpd')} ${c.speed}</small><p>${t('ab_' + k)}</p></div></div>`; }).join('');
@@ -136,8 +212,9 @@ export class UIManager {
   select(s) {
     this.sel = s; const gr = this.game.grid;
     s && s.tower ? gr.highlight(s.tower.x, s.tower.y) : s && s.sweeper ? gr.highlight(null) : s ? gr.highlight(s.x, s.y) : gr.highlight(null);
-    this.refresh();
+    this.rkey = ''; this.refresh(); if (s) { const R = $('radial'); R.classList.remove('open'); void R.offsetWidth; R.classList.add('open'); } // pop-in animation
   }
+  rotSweeper(v) { const g = this.game; if (g.remote) g.rotSweeper(v); else this.sel.sweeper.rotate(v); }
   act(A, b) { // actions from radial icons and info-window buttons
     const g = this.game, s = this.sel; if (!s) return;
     if (A === 'close') this.select(null);
@@ -149,39 +226,50 @@ export class UIManager {
     else if (A === 'doup') { g.upgrade(s.tower); s.mode = null; this.refresh(); }
     else if (A === 'dosell') { g.sell(s.tower); this.select(null); }
     else if (A === 'fix') g.repairSweeper();
-    else if (A === 'rl') s.sweeper.rotate(-1);
-    else if (A === 'rr') s.sweeper.rotate(1);
+    else if (A === 'rl') this.rotSweeper(-1);
+    else if (A === 'rr') this.rotSweeper(1);
   }
   anchor() { const s = this.sel; return s.tower ? s.tower.g.position.clone().setY(.4) : s.sweeper ? s.sweeper.g.position.clone().setY(.4) : wp(s.x, s.y).setY(.3); }
   place() { // keep the radial menu glued to its tile (camera shake / resize safe)
     const R = $('radial'); if (!this.sel) { R.style.display = 'none'; return; }
-    const v = this.anchor().project(this.sc.cam), W = $('view').clientWidth, H = $('view').clientHeight, m = RR + 34, ph = $('panel').style.display === 'none' ? 0 : $('panel').offsetHeight;
+    const v = this.anchor().project(this.sc.cam), W = $('view').clientWidth, H = $('view').clientHeight, m = (this.rr || RR) + 34, ph = $('panel').style.display === 'none' ? 0 : $('panel').offsetHeight;
     let x = (v.x * .5 + .5) * W, y = (-v.y * .5 + .5) * H;
     if (W > 2 * m) x = Math.min(Math.max(x, m), W - m); if (H > 2 * m + ph) y = Math.min(Math.max(y, m), H - m - ph);
     R.style.display = 'block'; R.style.transform = `translate(${x}px,${y}px)`;
   }
-  tick(dt) { this.place(); this.acc += dt; if (this.acc > .2) { this.acc = 0; this.hud(); } }
+  tick(dt) {
+    this.place(); const gt = this.game.gold; // gold counts up/down smoothly
+    if (this.gs === undefined) this.gs = gt; this.gs += (gt - this.gs) * Math.min(1, dt * 10);
+    const gv = Math.abs(gt - this.gs) < .5 ? gt : Math.round(this.gs); if (gv !== this.gv) { this.gv = gv; $('gold').textContent = gv.toLocaleString('en'); }
+    this.acc += dt; if (this.acc > .2) { this.acc = 0; this.hud(); } }
   hud() {
     const g = this.game, L = g.level;
-    $('hpfill').style.width = g.hp / START_HP * 100 + '%'; $('hptxt').textContent = g.hp;
-    $('gold').textContent = g.gold.toLocaleString('en'); $('towers').textContent = `${g.towers.length}/${g.cap}`;
-    $('wavetxt').textContent = `${t('wave')} ${g.wave}/${L.waves}`; $('wavefill').style.width = g.waveProgress() * 100 + '%';
+    $('hpfill').style.width = g.hp / g.maxHp * 100 + '%'; $('hptxt').textContent = g.hp;
+    $('towers').textContent = `${g.towers.length}/${g.cap}`;
+    $('wavetxt').textContent = `${t('wave')} ${g.wave}/${L.waves === Infinity ? '∞' : L.waves}`; $('wavefill').style.width = g.waveProgress() * 100 + '%';
     const nw = g.state === 'countdown' ? g.wave + 1 : g.wave, bonus = Math.round((waveDef(L, Math.max(nw, 1)).growth - 1) * 100);
-    $('st1').textContent = (g.state === 'countdown' ? '⏳ ' + `${t('nextin')} ${Math.ceil(g.timer)} ${t('s')}` : '⚔️ ' + t('inwave')) + ` · ${t('stage')} ${g.levelIdx + 1}`; $('st2').textContent = `👹 ${t('enemyHp')} +${bonus}%`;
+    $('st1').textContent = (g.state === 'countdown' ? '⏳ ' + `${t('nextin')} ${Math.ceil(g.timer)} ${t('s')}` : '⚔️ ' + t('inwave')) + ` · ${g.mp ? '👥 ' + t('mMulti') : L.endless ? '♾ ' + t(L.diff) : t('stage') + ' ' + (g.levelIdx + 1)}`; $('st2').textContent = `👹 ${t('enemyHp')} +${bonus}%`;
     if (g.gold !== this.pg) { const c = $('goldchip'); c.classList.remove('up'); void c.offsetWidth; c.classList.add('up'); this.pg = g.gold; } // gold pulse
     const nl = '⏩ <span class="lbl">' + t('next') + '</span>'; if (nl !== this.nl) { this.nl = nl; $('next').innerHTML = nl; } // only rewrite when changed so clicks aren't lost
     $('next').disabled = g.state !== 'countdown' || g.over;
+    const pl = this.mode === 'mp' ? this.net.players.map(p => `<i style="color:#${PLAYER_COLORS[p.id % 4].toString(16).padStart(6, '0')}">●</i> ${p.name}`).join(' · ') : ''; // players
+    if (pl !== this.plk) { this.plk = pl; $('st3').innerHTML = pl; }
     this.spells();
   }
   refresh() { this.hud(); this.panel(); this.radial(); }
-  radial() { // circle of icons around the selected tile/tower (rebuilt only when its content changes)
+  radial() { // circle of icons; first tap previews (range / stats), the icon turns into a tick, second tap on the tick confirms
     const R = $('radial'), s = this.sel, g = this.game; let items = [];
-    if (s && s.tower) { const w = s.tower, uc = w.upgradeCost(g.wave);
-      items = [{ a: 'up', ang: -90, ic: '⬆️', sub: uc == null ? t('max') : '💰' + uc, dis: uc == null || g.gold < uc, sel: s.mode === 'up' }, { a: 'sell', ang: 90, ic: '💰', sub: '+' + w.sellValue(), sel: s.mode === 'sell' }];
+    if (s && s.tower) { const w = s.tower, uc = w.upgradeCost(g.wave, g.maxLv), up = s.mode === 'up', sl = s.mode === 'sell';
+      items = [{ a: up ? 'doup' : 'up', ang: -90, ic: up ? '✔' : '⬆️', sub: uc == null ? (w.level < 6 ? '🔒' + g.maxLv : t('max')) : '💰' + uc, dis: uc == null || g.gold < uc, sel: up },
+               { a: sl ? 'dosell' : 'sell', ang: 90, ic: sl ? '✔' : '💰', sub: '+' + w.sellValue(), sel: sl }];
     } else if (s && s.sweeper) { const w = s.sweeper;
       items = w.repaired ? [{ a: 'rl', ang: 180, ic: '↺' }, { a: 'rr', ang: 0, ic: '↻' }] : [{ a: 'fix', ang: -90, ic: '🔧', sub: '💰' + w.cost, dis: g.gold < w.cost }];
-    } else if (s) items = g.deck.map((k, i) => ({ a: 'pick', k, ang: -90 + 360 * i / g.deck.length, img: thumb('tower', k, 1), sub: '💰' + TOWERS[k].cost, poor: g.gold < TOWERS[k].cost, sel: s.pick === k }));
-    const h = s ? '<div class="rring"></div>' + items.map(it => { const r = it.ang * Math.PI / 180;
+    } else if (s) { const full = g.towers.length >= g.cap;
+      items = g.deck.map((k, i) => { const p = s.pick === k, cost = TOWERS[k].cost;
+        return { a: p ? 'ok' : 'pick', k, ang: -90 + 360 * i / g.deck.length, img: p ? null : thumb('tower', k, 1), ic: '✔', sub: '💰' + cost, poor: g.gold < cost, dis: p && (g.gold < cost || full), sel: p }; });
+    }
+    const n = items.length, RR = this.rr = n <= 4 ? 58 : n <= 6 ? 70 : 84; // bigger circle when many towers are available (endless)
+    const h = s ? `<div class="rring" style="left:-${RR}px;top:-${RR}px;width:${RR * 2}px;height:${RR * 2}px"></div>` + items.map(it => { const r = it.ang * Math.PI / 180;
       return `<button class="rb ${it.sel ? 'sel' : ''} ${it.poor ? 'poor' : ''}" data-a="${it.a}" ${it.k ? `data-k="${it.k}"` : ''} ${it.dis ? 'disabled' : ''} style="left:${Math.round(Math.cos(r) * RR)}px;top:${Math.round(Math.sin(r) * RR)}px">${it.img ? `<img src="${it.img}" alt="">` : `<span class="ic">${it.ic}</span>`}${it.sub ? `<small>${it.sub}</small>` : ''}</button>`; }).join('') : '';
     if (h !== this.rkey) { this.rkey = h; R.innerHTML = h; }
   }
@@ -199,10 +287,15 @@ export class UIManager {
       const w = s.sweeper; ring(false);
       h = `<div class="ph"><b>🌀 ${t('sweeper')}${w.repaired ? '' : ' · ' + t('ruined')}</b><button class="x" data-a="close">✕</button></div><p class="st">${t('sweeperDesc')}${w.repaired ? `<br>${t('hpT')} ${Math.ceil(w.hp)}/${w.maxHp}` : ` · ${t('repair')} 💰${w.cost}${g.gold < w.cost ? ' ⚠️ ' + t('needGold') : ''}`}</p>`;
     } else if (s.tower) {
-      const w = s.tower, up = s.mode === 'up', uc = w.upgradeCost(g.wave), cur = towerStats(w.def, w.level), nx = up && uc != null ? towerStats(w.def, w.level + 1) : null, pos = w.g.position;
+      const w = s.tower, up = s.mode === 'up', uc = w.upgradeCost(g.wave, g.maxLv), cur = towerStats(w.def, w.level), nx = up && uc != null ? towerStats(w.def, w.level + 1) : null, pos = w.g.position;
       ring(true, nx ? nx.range : cur.range, pos.x, pos.z); this.ring.material.color.setHex(up ? 0x34d399 : 0x22d3ee);
-      let extra = w.def.nova ? `<div class="ab">✨ ${t('nova_' + w.def.nova)} ${w.level < 3 ? '🔒' : '✅'}${nx && w.level + 1 === 3 ? ' <i class="up">▲ ' + t('unlocked') + '</i>' : ''}</div>` : '';
-      if (w.type === 'sniper') extra += `<div class="ab">🎯 ${w.multi} ${t('targets')}${nx && w.level + 1 >= 4 ? ' <i class="up">▲ +' + (w.level + 1 === 4 ? 2 : 1) + '</i>' : ''}</div>`;
+      const D = w.def, nl = w.level + 1; let extra = '';
+      if (D.nova) extra += `<div class="ab">✨ ${t('nova_' + D.nova)} ${w.level < 4 ? '🔒' : '✅'}${nx && nl === 4 ? ` <i class="up">▲ ${t('unlocked')}</i>` : ''}</div>`;
+      if (w.type === 'sniper') extra += `<div class="ab">🎯 ${w.multi} ${t('targets')}${nx && nl >= 4 ? ' <i class="up">▲ +1</i>' : ''}${w.level < 4 ? ' 🔒 4' : ''}</div>`;
+      if (w.type === 'tesla') extra += `<div class="ab">🔗 ${w.chainN} ${t('chain')}${nx && nl >= 4 ? ` <i class="up">▲ +${nl === 4 ? 2 : 1}</i>` : ''}${w.level < 4 ? ' 🔒 4' : ''}</div>`;
+      if (w.type === 'mortar') extra += `<div class="ab">💣 ${w.multi} ${t('shells')}${nx && nl >= 5 ? ' <i class="up">▲ +1</i>' : ''}${w.level < 5 ? ' 🔒 5' : ''}</div>`;
+      if (w.type === 'barracks') extra += `<div class="ab">🛡️ 3 ${t('soldiers')} · ${t('hpT')} ${fmt(w.soldierHp)}${nx ? ` <i class="up">▲ +${fmt(w.soldierHp * .3)}</i>` : ''}</div>`;
+      if (uc == null && w.level < 6) extra += `<div class="ab">🔒 ${t('lvCap')}: ${g.maxLv}</div>`;
       h = `<div class="ph"><img class="th" src="${thumb('tower', w.type, w.level)}" alt=""><div><b>${t(w.type)} ${ELEM[w.def.elem]} · ${t('level')} ${w.level}${nx ? ` <i class="up">➜ ${w.level + 1}</i>` : ''}</b></div><button class="x" data-a="close">✕</button></div>${this.rows(cur, nx, w)}${extra}`;
       if (up) h += `<div class="row"><button class="ok" data-a="doup" ${uc == null || g.gold < uc ? 'disabled' : ''}>⬆ ${t('upgrade')} 💰${uc}</button><button data-a="cancel">${t('cancel')}</button></div>`;
       else if (s.mode === 'sell') h += `<div class="row"><button class="ok" data-a="dosell">💰 ${t('sell')} +${w.sellValue()}</button><button data-a="cancel">${t('cancel')}</button></div>`;
@@ -217,7 +310,7 @@ export class UIManager {
     const g = this.game, key = [Math.floor(g.charge), g.spells.freeze, g.spells.meteor, g.spells.repair, this.armed].join();
     if (!force && key === this.spkey) return; this.spkey = key;
     const mk = (id, ic, sub, cls) => `<button data-s="${id}" class="${cls}">${ic}<small>${sub}</small></button>`;
-    let h = mk('bolt', '⚡', Math.floor(g.charge) + '%', (g.charge >= 100 ? 'ready ' : '') + (this.armed === 'bolt' ? 'sel' : ''));
+    let h = this.spellOk('charge') ? mk('bolt', '⚡', Math.floor(g.charge) + '%', (g.charge >= 100 ? 'ready ' : '') + (this.armed === 'bolt' ? 'sel' : '')) : '';
     for (const k of ['freeze', 'meteor', 'repair']) if (g.spells[k] > 0) h += mk(k, SPELLS[k].icon, '×' + g.spells[k], this.armed === k ? 'sel' : '');
     $('spells').innerHTML = h;
   }
@@ -231,19 +324,49 @@ export class UIManager {
   }
   renderShop() {
     const g = this.game; $('shopgold').textContent = g.gold;
-    $('shoplist').innerHTML = Object.keys(SPELLS).map(k => `<div class="opt"><span>${SPELLS[k].icon} <b>${t('sp_' + k)}</b><br><small>${t('d_' + k)}</small></span><button data-k="${k}" ${g.gold < SPELLS[k].cost ? 'disabled' : ''}>💰${SPELLS[k].cost}</button></div>`).join('');
+    $('shoplist').innerHTML = Object.keys(SPELLS).filter(k => this.spellOk(k)).map(k => `<div class="opt"><span>${SPELLS[k].icon} <b>${t('sp_' + k)}</b><br><small>${t('d_' + k)}</small></span><button data-k="${k}" ${g.gold < SPELLS[k].cost ? 'disabled' : ''}>💰${SPELLS[k].cost}</button></div>`).join('');
     this.spells(true);
   }
+  flash() { const f = $('flash'); f.classList.add('on'); setTimeout(() => f.classList.remove('on'), 90); } // lightning flash
+  slides(i) { // intro / tutorial slides for a stage
+    const L = LEVELS[i], c = CHAPTERS[L.ch], s = [], tw = INTRO_TOWER[i] || (i === 0 ? 'cannon' : null), sp = INTRO_SPELL[i];
+    if (i === 0) [1, 2, 3, 4].forEach(n => s.push({ ic: ['🎯', '👆', '⬆️', '💰'][n - 1], t: 'tut' + n + 'T', d: 'tut' + n + 'D' }));
+    else if (i === c.first) s.push({ ic: c.icon, title: c.name[i18n.lang], d: 'chD_' + c.id });
+    if (tw) s.push({ img: thumb('tower', tw, 1), t: tw, d: 'tw_' + tw });
+    if (sp) s.push(sp === 'charge' ? { ic: '⚡', t: 'resT', d: 'resD' } : { ic: SPELLS[sp].icon, t: 'sp_' + sp, d: 'd_' + sp });
+    if (i === 5) s.push({ ic: '🌀', t: 'sweeper', d: 'sweeperDesc' });
+    if (L.hazard && i === c.first) s.push({ ic: '⛈️', t: 'hazT', d: 'hazD' });
+    if (i === 7) s.push({ ic: '⭐', t: 'lvUpT', d: 'lvUpD' });
+    if (i === 13) s.push({ img: thumb('enemy', 'snowling'), t: 'snowling', d: 'ab_snowling' });
+    if (i === 15) s.push({ img: thumb('enemy', 'yeti'), t: 'yeti', d: 'ab_yeti' });
+    return s;
+  }
+  showIntro(i) { const s = this.slides(i); if (!s.length || Save.data.seen[i]) return; this.islides = s; this.ipos = 0; this.istage = i; this.renderIntro(); this.show('intro'); }
+  renderIntro() {
+    const s = this.islides[this.ipos];
+    $('introimg').innerHTML = s.img ? `<img class="th big" src="${s.img}" alt="">` : `<div class="logo">${s.ic}</div>`;
+    $('introT').textContent = s.title || t(s.t); $('introD').textContent = t(s.d);
+    $('introdots').textContent = this.islides.map((_, j) => j === this.ipos ? '●' : '○').join(' ');
+    $('introgo').textContent = t(this.ipos === this.islides.length - 1 ? 'introGo' : 'introNext');
+  }
+  introNext() { if (++this.ipos < this.islides.length) return this.renderIntro(); Save.data.seen[this.istage] = 1; Save.save(); this.hide('intro'); }
+  endEndless() { // endless / multiplayer game over: best wave is saved per difficulty (solo only)
+    const g = this.game, L = g.level; let h = `<p>${L.name[i18n.lang]}</p><p>${t('reached')} ${g.wave}</p><p>${t('kills')}: ${g.kills}</p>`;
+    if (!g.mp) h += `<p>🏆 ${t('best')} (${t(L.diff)}): ${Save.recordEndless(L.diff, g.wave, g.kills)}</p>`;
+    $('overtitle').textContent = t('over'); $('overtxt').innerHTML = h; $('overnext').style.display = 'none'; $('overretry').style.display = g.mp ? 'none' : 'block'; $('over').classList.remove('hidden');
+  }
   end(win) { // save the result, show stars + newly unlocked tower
-    const g = this.game, L = g.level, before = Save.towers(), stars = Save.record(g.levelIdx, win, g.wave, g.hp / START_HP, g.kills), after = Save.towers();
+    if (this.game.mp || this.game.level.endless) return this.endEndless();
+    const g = this.game, L = g.level, before = Save.towers(), bs = Save.spells(), stars = Save.record(g.levelIdx, win, g.wave, g.hp / g.maxHp, g.kills), after = Save.towers();
     let h = `<p>${t('stage')} ${g.levelIdx + 1}: ${L.name[i18n.lang]}</p><p>${t('reached')} ${g.wave}/${L.waves}</p>`;
     if (win) {
       h += `<div class="stars big">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>`;
       for (const k of after) if (!before.has(k)) h += `<div class="gi"><img class="th" src="${thumb('tower', k, 1)}" alt=""><div><b>🎁 ${t('towerUnlocked')}: ${t(k)}</b><p>${t('tw_' + k)}</p></div></div>`;
+      for (const k of Save.spells()) if (!bs.has(k)) h += `<div class="gi"><div class="logo">${SPELLS[k].icon}</div><div><b>🎁 ${t('spellUnlocked')}: ${t('sp_' + k)}</b><p>${t('d_' + k)}</p></div></div>`;
       if (g.levelIdx + 1 >= LEVELS.length) h += `<p>${t('allDone')}</p>`;
     }
     $('overtitle').textContent = t(win ? 'win' : 'over'); $('overtxt').innerHTML = h;
-    $('overnext').style.display = win && g.levelIdx + 1 < LEVELS.length ? 'block' : 'none';
+    $('overnext').style.display = win && g.levelIdx + 1 < LEVELS.length ? 'block' : 'none'; $('overretry').style.display = 'block';
     $('over').classList.remove('hidden');
   }
 }
