@@ -1,123 +1,268 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fa" dir="rtl" data-theme="dark">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Tower Defense 3D</title>
-<!-- README: ES modules need a static server. In this folder run:  python3 -m http.server 8000
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <title>Tower Defense 3D</title>
+    <!-- README: ES modules need a static server. In this folder run:  python3 -m http.server 8000
      then open http://localhost:8000  (Three.js and the Vazirmatn font load from CDN). -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
-<link rel="stylesheet" href="css/themes.css">
-<link rel="stylesheet" href="css/style.css">
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
-</head>
-<body>
-<header id="top">
-  <div class="chip"><span class="ic">❤️</span><div class="bar"><i id="hpfill"></i></div><b class="val" id="hptxt"></b></div>
-  <div class="chip gold" id="goldchip"><span class="coin">🪙</span><b class="val" id="gold"></b></div>
-  <div class="chip"><span class="ic">🗼</span><b class="val" id="towers"></b></div>
-  <div class="chip"><span class="ic">🌊</span><span id="wavetxt"></span><div class="bar small"><i id="wavefill"></i></div></div>
-  <div class="grow"></div>
-  <button id="next"></button>
-  <button id="speed">⏩ 1×</button>
-  <button id="shopbtn" title="Shop">🛒</button>
-  <button id="gear" title="Settings">⚙️</button>
-</header>
-<div id="status"><span id="st1"></span><span id="st2" class="pill"></span><span id="st3"></span></div>
-<div id="stage">
-  <main id="view"><div id="zoombtns"><button id="zin">＋</button><button id="zout">－</button><button id="zreset">⌖</button></div><div id="toast"></div><div id="flash"></div><div id="spells"></div><div id="radial"></div><div id="panel"></div><div id="vig"></div></main>
-</div>
-<div class="overlay page" id="menu"><div class="card menubox">
-  <div class="logo float">🏰</div><h1 data-i18n="title"></h1><p class="sub" data-i18n="subtitle"></p>
-  <button class="big" id="m-start" data-i18n="mStart"></button>
-  <button class="big alt" id="m-endless" data-i18n="mEndless"></button>
-  <button class="big alt" id="m-multi" data-i18n="mMulti"></button>
-  <button class="big alt" id="m-records" data-i18n="mRecords"></button>
-  <button class="big alt" id="m-settings" data-i18n="settings"></button>
-  <button class="big alt" id="m-guide" data-i18n="how"></button>
-  <button class="big alt danger" id="m-reset" data-i18n="mReset"></button>
-  <p class="foot" id="menustats"></p>
-</div></div>
-<div class="overlay page hidden" id="levels">
-  <div class="pagehead"><button id="lv-back" data-i18n="back"></button><h2 data-i18n="mStart"></h2></div>
-  <div class="pagebody"><div id="levelgrid"></div></div>
-</div>
-<div class="overlay page hidden" id="records">
-  <div class="pagehead"><button id="rec-back" data-i18n="back"></button><h2 data-i18n="mRecords"></h2></div>
-  <div class="pagebody"><div id="recbody"></div></div>
-</div>
-<div class="overlay page hidden" id="endless">
-  <div class="pagehead"><button id="en-back" data-i18n="back"></button><h2>♾ <span data-i18n="mEndless"></span></h2></div>
-  <div class="pagebody card">
-    <p data-i18n="enDesc"></p>
-    <h3 data-i18n="difficulty"></h3><div id="diffgrid"></div>
-    <h3 data-i18n="map"></h3><div id="mapgrid"></div>
-    <button class="big" id="en-start" data-i18n="startGame"></button>
-  </div>
-</div>
-<div class="overlay page hidden" id="lobby">
-  <div class="pagehead"><button id="lb-back" data-i18n="back"></button><h2>👥 <span data-i18n="mMulti"></span></h2></div>
-  <div class="pagebody card">
-    <div id="lbconn">
-      <p data-i18n="coopNote"></p>
-      <div class="opt"><span data-i18n="lbName"></span><input type="text" id="lbname" maxlength="14"></div>
-      <div class="opt"><span data-i18n="lbServer"></span><input type="text" id="lbserver" dir="ltr"></div>
-      <p class="hint" data-i18n="lbHint"></p>
-      <button class="big" id="lb-create" data-i18n="lbCreate"></button>
-      <div class="opt"><input type="text" id="lbcode" maxlength="4" placeholder="ABCD" dir="ltr"><button id="lb-join" data-i18n="lbJoin"></button></div>
-    </div>
-    <div id="lbroom" class="hidden">
-      <p class="hint" data-i18n="lbRoom"></p><div class="codebig" id="lbcodeshow"></div>
-      <h3 data-i18n="lbPlayers"></h3><div id="lbplayers"></div>
-      <div id="lbhost" class="hidden">
-        <div class="opt"><span data-i18n="map"></span><select id="lbmap"></select></div>
-        <div class="opt"><span data-i18n="difficulty"></span><div class="seg" id="seg-ldiff"><button data-v="easy" data-i18n="easy"></button><button data-v="normal" data-i18n="normal"></button><button data-v="hard" data-i18n="hard"></button></div></div>
-        <button class="big" id="lb-start" data-i18n="lbStart"></button>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css"
+    />
+    <link rel="stylesheet" href="css/themes.css" />
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header id="top">
+      <div class="chip">
+        <span class="ic">❤️</span>
+        <div class="bar"><i id="hpfill"></i></div>
+        <b class="val" id="hptxt"></b>
       </div>
-      <p id="lbwait" class="hidden" data-i18n="lbWaiting"></p>
-      <button class="big alt" id="lb-leave" data-i18n="lbLeave"></button>
+      <div class="chip gold" id="goldchip">
+        <span class="coin">🪙</span><b class="val" id="gold"></b>
+      </div>
+      <div class="chip">
+        <span class="ic">🗼</span><b class="val" id="towers"></b>
+      </div>
+      <div class="chip">
+        <span class="ic">🌊</span><span id="wavetxt"></span>
+        <div class="bar small"><i id="wavefill"></i></div>
+      </div>
+      <div class="grow"></div>
+      <button id="next"></button>
+      <button id="speed">⏩ 1×</button>
+      <button id="shopbtn" title="Shop">🛒</button>
+      <button id="gear" title="Settings">⚙️</button>
+    </header>
+    <div id="status">
+      <span id="st1"></span><span id="st2" class="pill"></span
+      ><span id="st3"></span>
     </div>
-  </div>
-</div>
-<div class="overlay hidden" id="settings"><div class="card menu">
-  <h2 data-i18n="settings"></h2>
-  <div class="opt"><span data-i18n="language"></span><div class="seg" id="seg-lang"><button data-v="fa">فارسی</button><button data-v="en">English</button></div></div>
-  <div class="opt"><span data-i18n="theme"></span><div class="seg" id="seg-theme"><button data-v="dark">🌙 <span data-i18n="dark"></span></button><button data-v="light">☀️ <span data-i18n="light"></span></button></div></div>
-  <div class="opt"><span data-i18n="sound"></span><div class="seg" id="seg-sound"><button data-v="on">🔊 <span data-i18n="on"></span></button><button data-v="off">🔇 <span data-i18n="off"></span></button></div></div>
-  <div class="opt"><span data-i18n="volume"></span><input id="vol" type="range" min="0" max="1" step="0.1" aria-label="Volume"></div>
-  <div class="opt"><span data-i18n="quality"></span><div class="seg" id="seg-q"><button data-v="low" data-i18n="low"></button><button data-v="high" data-i18n="high"></button></div></div>
-  <div class="opt"><span data-i18n="speed"></span><div class="seg" id="seg-speed"><button data-v="1">1×</button><button data-v="2">2×</button><button data-v="3">3×</button></div></div>
-  <button class="big" id="resume" data-i18n="resume"></button>
-  <button class="big alt" id="restart2" data-i18n="retry"></button>
-  <button class="big alt" id="howbtn" data-i18n="how"></button>
-  <button class="big alt" id="tomenu" data-i18n="mainMenu"></button>
-</div></div>
-<div class="overlay hidden" id="shop"><div class="card menu">
-  <h2>🛒 <span data-i18n="shop"></span></h2><p>💰 <b id="shopgold"></b></p>
-  <div id="shoplist"></div><button class="big" id="shopclose" data-i18n="close"></button>
-</div></div>
-<div class="overlay hidden" id="howto"><div class="card menu">
-  <h2 data-i18n="how"></h2>
-  <div class="seg tabs" id="seg-guide"><button data-v="basics" data-i18n="g_basics"></button><button data-v="towers" data-i18n="g_towers"></button><button data-v="enemies" data-i18n="g_enemies"></button></div>
-  <div id="guidebody"></div>
-  <button class="big" id="startbtn" data-i18n="gotit"></button>
-</div></div>
-<div class="overlay hidden" id="deck"><div class="card menu wide">
-  <h2 data-i18n="deckT"></h2><p id="decksub"></p>
-  <div id="deckgrid"></div>
-  <button class="big" id="deckgo" data-i18n="startGame"></button>
-  <button class="big alt" id="deckback" data-i18n="back"></button>
-</div></div>
-<div class="overlay hidden" id="over"><div class="card">
-  <h2 id="overtitle"></h2><div id="overtxt"></div>
-  <button class="big" id="overnext" data-i18n="nextLevel"></button>
-  <button class="big alt" id="overretry" data-i18n="retry"></button>
-  <button class="big alt" id="overmenu" data-i18n="mainMenu"></button>
-</div></div>
-<div class="overlay hidden" id="intro"><div class="card">
-  <div id="introimg"></div><h2 id="introT"></h2><p id="introD"></p><div id="introdots"></div>
-  <button class="big" id="introgo"></button>
-</div></div>
-<script type="module" src="js/main.js"></script>
-</body>
+    <div id="stage">
+      <main id="view">
+        <div id="zoombtns">
+          <button id="zin">＋</button><button id="zout">－</button
+          ><button id="zreset">⌖</button>
+        </div>
+        <div id="toast"></div>
+        <div id="flash"></div>
+        <div id="spells"></div>
+        <div id="radial"></div>
+        <div id="panel"></div>
+        <div id="vig"></div>
+      </main>
+    </div>
+    <div class="overlay page" id="menu">
+      <div class="card menubox">
+        <div class="logo float">🏰</div>
+        <h1 data-i18n="title"></h1>
+        <p class="sub" data-i18n="subtitle"></p>
+        <button class="big" id="m-start" data-i18n="mStart"></button>
+        <button class="big alt" id="m-endless" data-i18n="mEndless"></button>
+        <button class="big alt" id="m-multi" data-i18n="mMulti"></button>
+        <button class="big alt" id="m-records" data-i18n="mRecords"></button>
+        <button class="big alt" id="m-settings" data-i18n="settings"></button>
+        <button class="big alt" id="m-guide" data-i18n="how"></button>
+        <button class="big alt danger" id="m-reset" data-i18n="mReset"></button>
+        <p class="foot" id="menustats"></p>
+      </div>
+    </div>
+    <div class="overlay page hidden" id="levels">
+      <div class="pagehead">
+        <button id="lv-back" data-i18n="back"></button>
+        <h2 data-i18n="mStart"></h2>
+      </div>
+      <div class="pagebody"><div id="levelgrid"></div></div>
+    </div>
+    <div class="overlay page hidden" id="records">
+      <div class="pagehead">
+        <button id="rec-back" data-i18n="back"></button>
+        <h2 data-i18n="mRecords"></h2>
+      </div>
+      <div class="pagebody"><div id="recbody"></div></div>
+    </div>
+    <div class="overlay page hidden" id="endless">
+      <div class="pagehead">
+        <button id="en-back" data-i18n="back"></button>
+        <h2>♾ <span data-i18n="mEndless"></span></h2>
+      </div>
+      <div class="pagebody card">
+        <p data-i18n="enDesc"></p>
+        <h3 data-i18n="difficulty"></h3>
+        <div id="diffgrid"></div>
+        <h3 data-i18n="map"></h3>
+        <div id="mapgrid"></div>
+        <button class="big" id="en-start" data-i18n="startGame"></button>
+      </div>
+    </div>
+    <div class="overlay page hidden" id="lobby">
+      <div class="pagehead">
+        <button id="lb-back" data-i18n="back"></button>
+        <h2>👥 <span data-i18n="mMulti"></span></h2>
+      </div>
+      <div class="pagebody card">
+        <div id="lbconn">
+          <p data-i18n="coopNote"></p>
+          <div class="opt">
+            <span data-i18n="lbName"></span
+            ><input type="text" id="lbname" maxlength="14" />
+          </div>
+          <div class="opt">
+            <span data-i18n="lbServer"></span
+            ><input type="text" id="lbserver" dir="ltr" />
+          </div>
+          <p class="hint" data-i18n="lbHint"></p>
+          <button class="big" id="lb-create" data-i18n="lbCreate"></button>
+          <div class="opt">
+            <input
+              type="text"
+              id="lbcode"
+              maxlength="4"
+              placeholder="ABCD"
+              dir="ltr"
+            /><button id="lb-join" data-i18n="lbJoin"></button>
+          </div>
+        </div>
+        <div id="lbroom" class="hidden">
+          <p class="hint" data-i18n="lbRoom"></p>
+          <div class="codebig" id="lbcodeshow"></div>
+          <h3 data-i18n="lbPlayers"></h3>
+          <div id="lbplayers"></div>
+          <div id="lbhost" class="hidden">
+            <div class="opt">
+              <span data-i18n="map"></span
+              ><select id="lbmap"></select>
+            </div>
+            <div class="opt">
+              <span data-i18n="difficulty"></span>
+              <div class="seg" id="seg-ldiff">
+                <button data-v="easy" data-i18n="easy"></button
+                ><button data-v="normal" data-i18n="normal"></button
+                ><button data-v="hard" data-i18n="hard"></button>
+              </div>
+            </div>
+            <button class="big" id="lb-start" data-i18n="lbStart"></button>
+          </div>
+          <p id="lbwait" class="hidden" data-i18n="lbWaiting"></p>
+          <button class="big alt" id="lb-leave" data-i18n="lbLeave"></button>
+        </div>
+      </div>
+    </div>
+    <div class="overlay hidden" id="settings">
+      <div class="card menu">
+        <h2 data-i18n="settings"></h2>
+        <div class="opt">
+          <span data-i18n="language"></span>
+          <div class="seg" id="seg-lang">
+            <button data-v="fa">فارسی</button
+            ><button data-v="en">English</button>
+          </div>
+        </div>
+        <div class="opt">
+          <span data-i18n="theme"></span>
+          <div class="seg" id="seg-theme">
+            <button data-v="dark">🌙 <span data-i18n="dark"></span></button
+            ><button data-v="light">☀️ <span data-i18n="light"></span></button>
+          </div>
+        </div>
+        <div class="opt">
+          <span data-i18n="sound"></span>
+          <div class="seg" id="seg-sound">
+            <button data-v="on">🔊 <span data-i18n="on"></span></button
+            ><button data-v="off">🔇 <span data-i18n="off"></span></button>
+          </div>
+        </div>
+        <div class="opt">
+          <span data-i18n="volume"></span
+          ><input
+            id="vol"
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            aria-label="Volume"
+          />
+        </div>
+        <div class="opt">
+          <span data-i18n="quality"></span>
+          <div class="seg" id="seg-q">
+            <button data-v="low" data-i18n="low"></button
+            ><button data-v="high" data-i18n="high"></button>
+          </div>
+        </div>
+        <div class="opt">
+          <span data-i18n="speed"></span>
+          <div class="seg" id="seg-speed">
+            <button data-v="1">1×</button><button data-v="2">2×</button
+            ><button data-v="3">3×</button>
+          </div>
+        </div>
+        <button class="big" id="resume" data-i18n="resume"></button>
+        <button class="big alt" id="restart2" data-i18n="retry"></button>
+        <button class="big alt" id="howbtn" data-i18n="how"></button>
+        <button class="big alt" id="tomenu" data-i18n="mainMenu"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="shop">
+      <div class="card menu">
+        <h2>🛒 <span data-i18n="shop"></span></h2>
+        <p>💰 <b id="shopgold"></b></p>
+        <div id="shoplist"></div>
+        <button class="big" id="shopclose" data-i18n="close"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="howto">
+      <div class="card menu">
+        <h2 data-i18n="how"></h2>
+        <div class="seg tabs" id="seg-guide">
+          <button data-v="basics" data-i18n="g_basics"></button
+          ><button data-v="towers" data-i18n="g_towers"></button
+          ><button data-v="enemies" data-i18n="g_enemies"></button>
+        </div>
+        <div id="guidebody"></div>
+        <button class="big" id="startbtn" data-i18n="gotit"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="deck">
+      <div class="card menu wide">
+        <h2 data-i18n="deckT"></h2>
+        <p id="decksub"></p>
+        <div id="deckgrid"></div>
+        <button class="big" id="deckgo" data-i18n="startGame"></button>
+        <button class="big alt" id="deckback" data-i18n="back"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="over">
+      <div class="card">
+        <h2 id="overtitle"></h2>
+        <div id="overtxt"></div>
+        <button class="big" id="overnext" data-i18n="nextLevel"></button>
+        <button class="big alt" id="overretry" data-i18n="retry"></button>
+        <button class="big alt" id="overmenu" data-i18n="mainMenu"></button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="intro">
+      <div class="card">
+        <div id="introimg"></div>
+        <h2 id="introT"></h2>
+        <p id="introD"></p>
+        <div id="introdots"></div>
+        <button class="big" id="introgo"></button>
+      </div>
+    </div>
+    <script type="module" src="js/main.js"></script>
+  </body>
 </html>
